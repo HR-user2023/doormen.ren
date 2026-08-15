@@ -64,7 +64,7 @@ const COLUMN_ORDER = {
   meetingTodo: ['會議主題', '待辦事項內容', '負責人', '預計完成日', '狀態', '備註'],
   project: ['專案名稱', '專案類型', '主要負責人', '介紹人', '說明', '開始日期', '預計完成日', '備註'],
   projectItem: ['專案名稱', '事項內容', '負責人', '進度(%)', '狀態', '備註'],
-  projectSettlement: ['專案名稱', '月份', '收入', '成本', '專案金額', '主要負責人分潤金額', '介紹人分潤金額', '公司利潤金額', '放行狀態', '備註'],
+  projectSettlement: ['專案名稱', '月份', '收入', '成本', '專案金額', '主要負責人分潤金額', '介紹人分潤金額', '公司利潤金額', '完成狀態', '放行狀態', '備註'],
   expense: ['申請日期', '申請人', '項目名稱', '金額', '說明', '審核狀態', '審核人', '審核日期', '收據附件', '備註'],
   attendance: ['日期', '姓名', '類型', '原因', '時數/天數', '本月累計次數', '備註'],
   inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '是否需補貨', '備註'],
@@ -73,7 +73,7 @@ const COLUMN_ORDER = {
            '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註']
 };
 
-const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '放行狀態']);
+const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態']);
 const LINK_COLUMNS = new Set(['收據附件']);
 
 // 明細列表用：點一列可以打開來源文件的詳細頁（目前所有明細列表都已改成卡片式，暫時沒有用到，保留機制供之後使用）
@@ -125,6 +125,7 @@ const FIELD_META = {
   projectSettlement: {
     月份: { type: 'month' },
     收入: { type: 'number' },
+    完成狀態: { type: 'select', options: ['進行中', '已完成'] },
     備註: { type: 'text' }
   },
   projectExpenseItem: {
@@ -1052,11 +1053,20 @@ function renderSettlementSummary() {
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>專案名稱</th><th>月份</th><th>收入</th><th>成本</th><th>專案金額</th><th>主要負責人分潤</th><th>介紹人分潤</th><th>放行狀態</th><th>操作</th></tr>
+              <tr><th>專案名稱</th><th>月份</th><th>收入</th><th>成本</th><th>專案金額</th><th>主要負責人分潤</th><th>介紹人分潤</th><th>完成狀態</th><th>放行狀態</th><th>操作</th></tr>
             </thead>
             <tbody>
               ${items.map(r => {
                 const released = r['放行狀態'] === '已放行';
+                const completed = r['完成狀態'] === '已完成';
+                let actionHtml;
+                if (released) {
+                  actionHtml = `<button type="button" class="secondary btn-release" data-settlement-id="${escapeHtml(r['編號'])}" data-decision="未放行">取消放行</button>`;
+                } else if (completed) {
+                  actionHtml = `<button type="button" class="secondary btn-release" data-settlement-id="${escapeHtml(r['編號'])}" data-decision="已放行">放行</button>`;
+                } else {
+                  actionHtml = `<span class="hint" style="margin:0;">尚未完成，無法放行</span>`;
+                }
                 return `<tr>
                 <td>${escapeHtml(r['專案名稱'] || '')}</td>
                 <td>${escapeHtml(r['月份'] || '')}</td>
@@ -1065,10 +1075,9 @@ function renderSettlementSummary() {
                 <td>${escapeHtml(String(r['專案金額'] ?? ''))}</td>
                 <td>${escapeHtml(String(r['主要負責人分潤金額'] ?? ''))}</td>
                 <td>${escapeHtml(String(r['介紹人分潤金額'] ?? ''))}</td>
+                <td>${tagHtml(r['完成狀態'] || '進行中')}</td>
                 <td>${tagHtml(r['放行狀態'] || '未放行')}</td>
-                <td class="row-actions">${released
-                  ? `<button type="button" class="secondary btn-release" data-settlement-id="${escapeHtml(r['編號'])}" data-decision="未放行">取消放行</button>`
-                  : `<button type="button" class="secondary btn-release" data-settlement-id="${escapeHtml(r['編號'])}" data-decision="已放行">放行</button>`}</td>
+                <td class="row-actions">${actionHtml}</td>
               </tr>`;
               }).join('')}
             </tbody>
