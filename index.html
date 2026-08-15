@@ -46,8 +46,8 @@
         <label>主持人
           <select name="主持人" class="partner-select" required></select>
         </label>
-        <label>出席人員
-          <input type="text" name="出席人員" placeholder="例如：王小明、林小美、陳大文" />
+        <label>缺席人員
+          <input type="text" name="缺席人員" placeholder="例如：陳大文（請假）" />
         </label>
         <label class="full">本次會議內容
           <textarea name="本次會議內容" placeholder="這次會議討論了什麼？"></textarea>
@@ -103,17 +103,10 @@
   <!-- ============ 專案建立（新增） ============ -->
   <section id="view-project-create" class="view content-view">
     <div class="card">
-      <h2>新增專案事項</h2>
-      <form class="grid" data-type="project">
+      <h2>新增專案</h2>
+      <form class="grid" id="project-form" data-type="project">
         <label>專案名稱
-          <input type="text" name="專案名稱" required list="project-name-list" />
-          <datalist id="project-name-list"></datalist>
-        </label>
-        <label>事項內容
-          <input type="text" name="事項內容" required />
-        </label>
-        <label>負責人
-          <select name="負責人" class="partner-select" required></select>
+          <input type="text" name="專案名稱" required />
         </label>
         <label>開始日期
           <input type="date" name="開始日期" />
@@ -121,35 +114,57 @@
         <label>預計完成日
           <input type="date" name="預計完成日" />
         </label>
-        <label>進度(%)
-          <input type="number" name="進度(%)" min="0" max="100" value="0" />
-        </label>
-        <label>狀態
-          <select name="狀態">
-            <option>未開始</option>
-            <option>進行中</option>
-            <option>已完成</option>
-            <option>延遲</option>
-          </select>
+        <label class="full">說明
+          <textarea name="說明" placeholder="這個專案的目標或範圍"></textarea>
         </label>
         <label class="full">備註
           <input type="text" name="備註" />
         </label>
+
+        <div class="full todo-section">
+          <div class="todo-section-head">
+            <span>工作事項（可新增多筆，每筆可以指定不同負責人與進度）</span>
+            <button type="button" id="add-project-item-row" class="secondary">＋ 新增工作事項</button>
+          </div>
+          <div id="project-item-rows"></div>
+        </div>
+
         <div class="submit-row">
-          <button type="submit" class="primary">送出專案事項</button>
+          <button type="submit" class="primary">送出專案</button>
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">若要更新某事項的進度，請新增一筆同專案名稱、同事項內容的最新紀錄，或直接到 Google Sheet 修改既有列。</p>
+    </div>
+    <div class="card">
+      <h2>歷史專案</h2>
+      <p class="hint">點一筆專案可以打開所有工作事項、負責人與進度。</p>
+      <div class="doc-list" data-doclist="project"></div>
     </div>
   </section>
 
-  <!-- ============ 專案進度追蹤（列表） ============ -->
+  <!-- 專案工作事項列樣板（JS 會 clone 這個） -->
+  <template id="project-item-row-template">
+    <div class="todo-row project-item-row">
+      <input type="text" class="item-content" placeholder="事項內容" />
+      <select class="item-owner partner-select"></select>
+      <input type="number" class="item-progress" min="0" max="100" placeholder="進度%" />
+      <select class="item-status">
+        <option>未開始</option>
+        <option>進行中</option>
+        <option>已完成</option>
+        <option>延遲</option>
+      </select>
+      <button type="button" class="todo-remove" title="刪除這筆">×</button>
+    </div>
+  </template>
+
+  <!-- ============ 專案進度追蹤（以工作事項為單位） ============ -->
   <section id="view-project-track" class="view content-view">
     <div class="card">
       <h2>專案進度追蹤</h2>
-      <label class="filter-toggle"><input type="checkbox" data-filter="project" checked /> 只顯示未完成的事項</label>
-      <div class="table-wrap" data-list="project"></div>
+      <p class="hint">這裡列出所有專案的工作事項，可以看到每一筆各自的負責人與進度；點一列可以打開來源專案的完整內容。</p>
+      <label class="filter-toggle"><input type="checkbox" data-filter="projectItem" checked /> 只顯示未完成的事項</label>
+      <div class="table-wrap" data-list="projectItem"></div>
     </div>
   </section>
 
@@ -236,7 +251,7 @@
   <section id="view-expense-apply" class="view content-view">
     <div class="card">
       <h2>申請請款</h2>
-      <form class="grid" data-type="expense">
+      <form class="grid" id="expense-form" data-type="expense">
         <label>申請日期
           <input type="date" name="申請日期" required />
         </label>
@@ -252,6 +267,9 @@
         <label class="full">說明
           <textarea name="說明" placeholder="請說明用途"></textarea>
         </label>
+        <label class="full">收據／明細照片
+          <input type="file" id="expense-receipt" accept="image/*" />
+        </label>
         <label class="full">備註
           <input type="text" name="備註" />
         </label>
@@ -260,14 +278,17 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">送出後審核狀態為「待審核」，管理者會在 Google Sheet 上核准／退回。</p>
+      <p class="hint">送出後審核狀態為「待審核」，管理者可在「請款紀錄」頁籤核准／退回，或直接在 Google Sheet 上處理。照片檔案建議 5MB 以內。</p>
     </div>
   </section>
 
-  <!-- ============ 請款紀錄（列表） ============ -->
+  <!-- ============ 請款紀錄（列表＋審核） ============ -->
   <section id="view-expense-track" class="view content-view">
     <div class="card">
       <h2>請款紀錄</h2>
+      <label>審核人（要核准／退回前，請先選自己的名字）
+        <select id="approver-select" class="partner-select"></select>
+      </label>
       <div class="table-wrap" data-list="expense"></div>
     </div>
   </section>
@@ -320,11 +341,11 @@
 
 <footer>門人夥伴管理系統 · 資料儲存於 Google Sheet</footer>
 
-<!-- ============ 會議詳細頁（彈窗，文件式呈現） ============ -->
-<div id="meeting-detail-overlay" class="modal-overlay">
+<!-- ============ 詳細頁（彈窗，文件式呈現，會議與專案共用） ============ -->
+<div id="detail-overlay" class="modal-overlay">
   <div class="modal-doc">
-    <button id="meeting-detail-close" class="modal-close" title="關閉">×</button>
-    <div id="meeting-detail-content"></div>
+    <button id="detail-close" class="modal-close" title="關閉">×</button>
+    <div id="detail-content"></div>
   </div>
 </div>
 

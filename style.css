@@ -207,6 +207,20 @@ th { color: var(--muted); font-weight: 600; background: #fafbfd; }
 tr.clickable-row { cursor: pointer; }
 tr.clickable-row:hover td { background: #EEF1F8; }
 
+.row-actions { display: flex; gap: 6px; white-space: nowrap; }
+
+.btn-approve, .btn-reject {
+  border: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.btn-approve { background: #E6F4EA; color: var(--ok); }
+.btn-reject { background: #FBE7E5; color: var(--danger); }
+
+.receipt-link { color: var(--primary-dark); text-decoration: underline; font-size: 0.85rem; }
+
 .tag {
   display: inline-block;
   padding: 2px 8px;
@@ -278,8 +292,13 @@ button.secondary {
   line-height: 1;
 }
 
+.todo-row.project-item-row {
+  grid-template-columns: 2fr 1.1fr 0.8fr 1fr auto;
+}
+
 @media (max-width: 600px) {
-  .todo-row { grid-template-columns: 1fr; }
+  .todo-row,
+  .todo-row.project-item-row { grid-template-columns: 1fr; }
 }
 
 /* ---- 歷史紀錄清單（可點開文件） ---- */
