@@ -1164,6 +1164,44 @@ async function loadMeetingTrackList() {
   }
 }
 
+// ---------- 共用：未完成待辦事項表格（含「未完成原因」欄位，可直接編輯儲存）----------
+// 「未完成原因」存在該筆待辦事項自己的「備註」欄位裡（會議待辦事項分頁），不管在哪裡編輯，存的都是同一筆資料。
+function renderUnfinishedTodoTable(todos) {
+  if (todos.length === 0) {
+    return '<p class="hint">上次待辦事項都已如期完成，沒有需要追蹤的項目。</p>';
+  }
+  return '<table class="doc-todo-table"><thead><tr><th>待辦事項</th><th>負責人</th><th>狀態</th><th>未完成原因</th><th></th></tr></thead><tbody>' +
+    todos.map(t => `<tr>
+        <td>${escapeHtml(t['待辦事項內容'] || '')}</td>
+        <td>${escapeHtml(t['負責人'] || '')}</td>
+        <td>${tagHtml(t['狀態'])}</td>
+        <td><input type="text" class="unfinished-reason-input" data-todo-id="${escapeHtml(t['編號'])}" value="${escapeHtml(t['備註'] || '')}" placeholder="寫下未完成的原因" /></td>
+        <td><button type="button" class="secondary btn-save-reason" data-todo-id="${escapeHtml(t['編號'])}">儲存</button></td>
+      </tr>`).join('') + '</tbody></table>';
+}
+
+function wireUnfinishedReasonButtons(container) {
+  container.querySelectorAll('.btn-save-reason').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const todoId = btn.dataset.todoId;
+      const input = container.querySelector(`.unfinished-reason-input[data-todo-id="${todoId}"]`);
+      const reason = input ? input.value : '';
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = '儲存中…';
+      try {
+        const res = await apiPostRaw({ action: 'update', type: 'meetingTodo', id: todoId, data: { 備註: reason } });
+        btn.textContent = res.ok ? '已儲存' : '失敗';
+      } catch (err) {
+        btn.textContent = '失敗';
+        console.error(err);
+      } finally {
+        setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 1500);
+      }
+    });
+  });
+}
+
 // ---------- 上次會議記錄（追溯參考）：新增會議記錄頁面上方顯示最近一次會議的內容與未完成待辦事項 ----------
 async function loadLastMeetingReference() {
   const card = document.getElementById('last-meeting-ref-card');
@@ -1184,19 +1222,7 @@ async function loadLastMeetingReference() {
     const todos = (todoRes.ok ? todoRes.data : []).filter(t => String(t['會議編號']) === String(last['編號']));
     const unfinished = todos.filter(t => t['狀態'] !== '已完成');
 
-    let todoHtml;
-    if (unfinished.length === 0) {
-      todoHtml = '<p class="hint">上次待辦事項都已如期完成，沒有需要追蹤的項目。</p>';
-    } else {
-      todoHtml = '<table class="doc-todo-table"><thead><tr><th>待辦事項</th><th>負責人</th><th>狀態</th><th>未完成原因</th><th></th></tr></thead><tbody>' +
-        unfinished.map(t => `<tr>
-            <td>${escapeHtml(t['待辦事項內容'] || '')}</td>
-            <td>${escapeHtml(t['負責人'] || '')}</td>
-            <td>${tagHtml(t['狀態'])}</td>
-            <td><input type="text" class="unfinished-reason-input" data-todo-id="${escapeHtml(t['編號'])}" value="${escapeHtml(t['備註'] || '')}" placeholder="寫下未完成的原因" /></td>
-            <td><button type="button" class="secondary btn-save-reason" data-todo-id="${escapeHtml(t['編號'])}">儲存</button></td>
-          </tr>`).join('') + '</tbody></table>';
-    }
+    const todoHtml = renderUnfinishedTodoTable(unfinished);
 
     content.innerHTML = `
       <div class="doc-header-meta" style="margin-bottom:10px;">
@@ -1212,25 +1238,7 @@ async function loadLastMeetingReference() {
     `;
     card.style.display = 'block';
 
-    content.querySelectorAll('.btn-save-reason').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const todoId = btn.dataset.todoId;
-        const input = content.querySelector(`.unfinished-reason-input[data-todo-id="${todoId}"]`);
-        const reason = input ? input.value : '';
-        btn.disabled = true;
-        const originalText = btn.textContent;
-        btn.textContent = '儲存中…';
-        try {
-          const res = await apiPostRaw({ action: 'update', type: 'meetingTodo', id: todoId, data: { 備註: reason } });
-          btn.textContent = res.ok ? '已儲存' : '失敗';
-        } catch (err) {
-          btn.textContent = '失敗';
-          console.error(err);
-        } finally {
-          setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 1500);
-        }
-      });
-    });
+    wireUnfinishedReasonButtons(content);
   } catch (err) {
     card.style.display = 'none';
     console.error(err);
@@ -1267,6 +1275,23 @@ async function openMeetingDetail(meetingId) {
     const meeting = meetingRes.data.find(m => String(m['編號']) === String(meetingId));
     if (!meeting) { content.innerHTML = '<p class="hint">找不到這筆會議記錄。</p>'; return; }
     const todos = (todoRes.ok ? todoRes.data : []).filter(t => String(t['會議編號']) === String(meetingId));
+    const allTodos = todoRes.ok ? todoRes.data : [];
+
+    // 找出「上一次會議」（按會議日期排序，排在這場會議前面那一場），列出它未完成的待辦事項（內容／負責人／未完成原因），方便追蹤
+    const sortedMeetings = meetingRes.data.slice().sort((a, b) => String(a['會議日期'] || '').localeCompare(String(b['會議日期'] || '')));
+    const idx = sortedMeetings.findIndex(m => String(m['編號']) === String(meetingId));
+    const prevMeeting = idx > 0 ? sortedMeetings[idx - 1] : null;
+    let prevBlockHtml = '';
+    if (prevMeeting) {
+      const prevTodos = allTodos.filter(t => String(t['會議編號']) === String(prevMeeting['編號']));
+      const prevUnfinished = prevTodos.filter(t => t['狀態'] !== '已完成');
+      prevBlockHtml = `
+        <div class="doc-block">
+          <h4>上次會議（${escapeHtml(prevMeeting['會議日期'] || '')}　${escapeHtml(prevMeeting['會議主題'] || '')}）未完成的待辦事項（共 ${prevUnfinished.length} 筆，全部 ${prevTodos.length} 筆）</h4>
+          ${renderUnfinishedTodoTable(prevUnfinished)}
+        </div>
+      `;
+    }
 
     let todoHtml;
     if (todos.length === 0) {
@@ -1296,6 +1321,7 @@ async function openMeetingDetail(meetingId) {
       </div>
       ${docBlock('本次會議內容', meeting['本次會議內容'])}
       ${docBlock('追蹤上次進度', meeting['追蹤上次進度'])}
+      ${prevBlockHtml}
       <div class="doc-block">
         <h4>待辦事項（共 ${todos.length} 筆）</h4>
         ${todoHtml}
@@ -1311,7 +1337,7 @@ async function openMeetingDetail(meetingId) {
         loadLastMeetingReference();
       });
     });
-    content.querySelectorAll('[data-todo-id]').forEach(btn => {
+    content.querySelectorAll('.btn-edit[data-todo-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const t = todos.find(x => String(x['編號']) === btn.dataset.todoId);
         if (t) {
@@ -1323,6 +1349,7 @@ async function openMeetingDetail(meetingId) {
         }
       });
     });
+    wireUnfinishedReasonButtons(content);
   } catch (err) {
     content.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
     console.error(err);
