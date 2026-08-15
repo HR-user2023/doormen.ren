@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root{
+    --primary:#3d5a80; --primary-dark:#293b52; --accent:#ee6c4d;
+    --bg:#f4f6f8; --card:#ffffff; --border:#e2e6ea; --text:#2b2f36; --muted:#7a828c;
+    --ok:#2e7d32; --warn:#ed6c02; --danger:#c62828;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--primary);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:20;box-shadow:0 2px 6px rgba(0,0,0,.15);}
+  header h1{font-size:17px;margin:0 0 8px;font-weight:600;}
+  .userbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .userbar select{padding:6px 8px;border-radius:6px;border:none;font-size:14px;}
+  .userbar button{padding:6px 10px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;}
+  nav{display:flex;overflow-x:auto;background:var(--primary-dark);position:sticky;top:64px;z-index:19;}
+  nav button{flex:1;min-width:88px;padding:11px 6px;background:none;border:none;color:#cdd6e0;font-size:13px;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;}
+  nav button.active{color:#fff;border-bottom:3px solid var(--accent);font-weight:600;}
+  .subnav{display:none;align-items:center;gap:8px;background:#fff;border-bottom:1px solid var(--border);padding:9px 14px;overflow-x:auto;white-space:nowrap;}
+  .subnav-back{border:none;background:none;color:var(--primary);font-size:13.5px;font-weight:600;cursor:pointer;padding:4px 6px 4px 0;flex-shrink:0;}
+  .subnav-title{font-size:13.5px;font-weight:700;color:var(--text);margin-right:6px;flex-shrink:0;padding-left:6px;border-left:1px solid var(--border);}
+  .subnav-chip{border:1px solid var(--border);background:#f4f6f8;color:var(--muted);border-radius:20px;padding:5px 13px;font-size:13px;cursor:pointer;flex-shrink:0;}
+  .subnav-chip.active{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600;}
+  main{padding:14px;max-width:760px;margin:0 auto;padding-bottom:60px;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.03);}
+  .card h3{margin:0 0 6px;font-size:15px;}
+  .meta{color:var(--muted);font-size:12.5px;margin:2px 0;}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .btn{padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer;}
+  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .btn-accent{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn-danger{color:var(--danger);border-color:var(--danger);}
+  .btn-sm{padding:4px 8px;font-size:12px;}
+  .fab-add{width:100%;padding:11px;border-radius:8px;border:1px dashed var(--primary);background:#eaf0f7;color:var(--primary);font-weight:600;cursor:pointer;margin-bottom:14px;font-size:14px;}
+  form.inline{background:#f8f9fb;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;display:none;}
+  form.inline.open{display:block;}
+  form.inline label{display:block;font-size:12.5px;color:var(--muted);margin:8px 0 3px;}
+  form.inline input, form.inline select, form.inline textarea{width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);font-size:14px;font-family:inherit;}
+  form.inline textarea{resize:vertical;min-height:56px;}
+  form.inline .actions{margin-top:10px;display:flex;gap:8px;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+  .badge.待處理,.badge.待審核{background:#fff3e0;color:var(--warn);}
+  .badge.進行中{background:#e3f2fd;color:#1565c0;}
+  .badge.已完成,.badge.已核准{background:#e8f5e9;color:var(--ok);}
+  .badge.已拒絕{background:#ffebee;color:var(--danger);}
+  .badge.遲到{background:#fff3e0;color:var(--warn);}
+  .badge.請假{background:#e3f2fd;color:#1565c0;}
+  .badge.未到{background:#ffebee;color:var(--danger);}
+  .item-line{border-top:1px solid var(--border);padding:8px 0;font-size:13.5px;}
+  .item-line:first-child{border-top:none;}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:13.5px;}
+  .progress-bar{background:#e6e9ee;border-radius:6px;height:8px;overflow:hidden;margin-top:4px;}
+  .progress-bar > div{background:var(--primary);height:100%;}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#2b2f36;color:#fff;padding:10px 18px;border-radius:8px;font-size:13.5px;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none;}
+  .toast.show{opacity:1;}
+  .stat-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .stat{flex:1;min-width:90px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;}
+  .stat b{display:block;font-size:20px;color:var(--primary);}
+  .stat span{font-size:11.5px;color:var(--muted);}
+  select.filter{padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;margin-bottom:10px;}
+  #loading{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--muted);z-index:100;}
+  .amount{font-weight:700;color:var(--primary-dark);}
+  .home-greeting{margin-bottom:14px;}
+  .home-greeting div:first-child{font-size:19px;font-weight:700;color:var(--primary-dark);}
+  .home-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+  .home-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:box-shadow .15s,transform .15s;text-align:left;}
+  .home-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.08);transform:translateY(-1px);}
+  .home-card .n{font-size:24px;font-weight:700;color:var(--primary);}
+  .home-card .n.alert{color:var(--danger);}
+  .home-card .l{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .home-card .icon{font-size:18px;margin-bottom:4px;}
+  .feed-item{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--border);font-size:13.5px;}
+  .feed-item:first-child{border-top:none;}
+  .feed-item .tag{flex-shrink:0;font-size:11.5px;color:#fff;background:var(--primary);border-radius:5px;padding:2px 7px;height:fit-content;}
+  .feed-item .txt{flex:1;}
+  .feed-item .t{color:var(--muted);font-size:12px;}
+</style>
+</head>
+<body>
+
+<div id="loading">載入中…</div>
+
+<header>
+  <h1>🤝 門人夥伴管理系統</h1>
+  <div class="userbar">
+    <select id="currentUserSelect"></select>
+    <button onclick="showAddMember()">＋新增夥伴</button>
+  </div>
+</header>
+
+<nav id="tabNav">
+  <button data-cat="home" class="active" onclick="goHome()">首頁</button>
+  <button data-cat="meeting" onclick="goToPage('meetings')">會議</button>
+  <button data-cat="project" onclick="goToPage('projects')">專案</button>
+  <button data-cat="finance" onclick="goToPage('reimburse')">請款</button>
+  <button data-cat="attendance" onclick="goToPage('attendance')">出缺勤</button>
+  <button data-cat="sales" onclick="goToPage('products')">商品銷售</button>
+  <button data-cat="settings" onclick="goToPage('members')">設定</button>
+</nav>
+
+<div id="subnav" class="subnav"></div>
+
+<main>
+
+  <!-- ============ 首頁 ============ -->
+  <div class="tab active" id="tab-home">
+    <div class="home-greeting">
+      <div id="home-greeting-text">哈囉！</div>
+      <div class="meta" id="home-date-text"></div>
+    </div>
+    <div class="home-grid" id="home-grid"></div>
+    <div class="card">
+      <h3 style="margin-bottom:8px;">最近動態</h3>
+      <div id="home-feed"></div>
+    </div>
+  </div>
+
+  <!-- ============ 會議記錄 ============ -->
+  <div class="tab" id="tab-meetings">
+    <button class="fab-add" onclick="toggleForm('form-meeting')">＋ 新增一次會議記錄</button>
+    <form class="inline" id="form-meeting">
+      <label>會議日期</label><input type="date" id="m-date">
+      <label>會議主題</label><input type="text" id="m-topic" placeholder="例如：8月例會">
+      <label>本次會議內容</label><textarea id="m-content" placeholder="本次討論內容摘要"></textarea>
+      <div id="prev-progress-box"></div>
+      <label>本次新增待辦事項（可稍後在會議卡片內繼續新增）</label>
+      <input type="text" id="m-item-content" placeholder="事項內容">
+      <input type="text" id="m-item-owner" placeholder="負責人（留空可先不指定）" style="margin-top:6px;">
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="submitMeeting()">儲存會議記錄</button>
+        <button type="button" class="btn" onclick="toggleForm('form-meeting')">取消</button>
+      </div>
+    </form>
+    <div id="list-meetings"></div>
+  </div>
+
+  <!-- ============ 專案進度 ============ -->
+  <div class="tab" id="tab-projects">
+    <button class="fab-add" onclick="toggleForm('form-project')">＋ 新增專案</button>
+    <form class="inline" id="form-project">
+      <label>專案名稱</label><input type="text" id="p-name">
+      <label>專案說明</label><textarea id="p-desc"></textarea>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="submitProject()">建立專案</button>
+        <button type="button" class="btn" onclick="toggleForm('form-project')">取消</button>
+      </div>
+    </form>
+    <div id="list-projects"></div>
+  </div>
+
+  <!-- ============ 內部請款 ============ -->
+  <div class="tab" id="tab-reimburse">
+    <button class="fab-add" onclick="toggleForm('form-reimburse')">＋ 我要請款</button>
+    <form class="inline" id="form-reimburse">
+      <label>申請日期</label><input type="date" id="r-date">
+      <label>類別</label>
+      <select id="r-category">
+        <option>交通費</option><option>材料費</option><option>餐費</option><option>文具耗材</option><option>活動支出</option><option>其他</option>
+      </select>
+      <label>金額（元）</label><input type="number" id="r-amount" min="0">
+      <label>說明</label><textarea id="r-desc" placeholder="請簡述請款事由"></textarea>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="submitReimburse()">送出申請</button>
+        <button type="button" class="btn" onclick="toggleForm('form-reimburse')">取消</button>
+      </div>
+    </form>
+    <select class="filter" id="r-filter" onchange="renderReimburse()">
+      <option value="all">全部狀態</option>
+      <option value="待審核">待審核</option>
+      <option value="已核准">已核准</option>
+      <option value="已拒絕">已拒絕</option>
+    </select>
+    <div id="list-reimburse"></div>
+  </div>
+
+  <!-- ============ 出缺勤 ============ -->
+  <div class="tab" id="tab-attendance">
+    <button class="fab-add" onclick="toggleForm('form-attendance')">＋ 新增遲到／請假紀錄</button>
+    <form class="inline" id="form-attendance">
+      <label>夥伴</label><select id="a-name"></select>
+      <label>日期</label><input type="date" id="a-date">
+      <label>類型</label>
+      <select id="a-type"><option>遲到</option><option>請假</option><option>未到</option></select>
+      <label>原因</label><textarea id="a-reason" placeholder="請簡述原因"></textarea>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="submitAttendance()">送出紀錄</button>
+        <button type="button" class="btn" onclick="toggleForm('form-attendance')">取消</button>
+      </div>
+    </form>
+    <div class="stat-row" id="attendance-stats"></div>
+    <div id="list-attendance"></div>
+  </div>
+
+  <!-- ============ 商品 ============ -->
+  <div class="tab" id="tab-products">
+    <button class="fab-add" onclick="toggleForm('form-product')">＋ 新增商品</button>
+    <form class="inline" id="form-product">
+      <label>商品名稱</label><input type="text" id="pr-name">
+      <label>售價（元）</label><input type="number" id="pr-price" min="0">
+      <label>目前庫存數量</label><input type="number" id="pr-stock" min="0" value="0">
+      <label>說明（選填）</label><textarea id="pr-desc"></textarea>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="submitProduct()">新增商品</button>
+        <button type="button" class="btn" onclick="toggleForm('form-product')">取消</button>
+      </div>
+    </form>
+    <div id="list-products"></div>
+  </div>
+
+  <!-- ============ 訂單 ============ -->
+  <div class="tab" id="tab-orders">
+    <button class="fab-add" onclick="toggleForm('form-order')">＋ 新增訂單</button>
+    <form class="inline" id="form-order">
+      <label>訂單日期</label><input type="date" id="o-date">
+      <label>客戶名稱</label><input type="text" id="o-customer" placeholder="客戶姓名／稱呼">
+      <label>聯絡方式</label><input type="text" id="o-contact" placeholder="電話、LINE、IG帳號等">
+      <label>備註（選填）</label><textarea id="o-note"></textarea>
+      <label>加入商品</label>
+      <div class="row" style="gap:6px;">
+        <select id="o-product" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);"></select>
+        <input type="number" id="o-qty" value="1" min="1" style="width:70px;padding:8px;border-radius:6px;border:1px solid var(--border);">
+        <button type="button" class="btn btn-sm" onclick="addToDraft()">加入</button>
+      </div>
+      <div id="order-draft" style="margin-top:8px;"></div>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="submitOrder()">建立訂單</button>
+        <button type="button" class="btn" onclick="toggleForm('form-order')">取消</button>
+      </div>
+    </form>
+    <div class="stat-row" id="order-stats"></div>
+    <div id="list-orders"></div>
+  </div>
+
+  <!-- ============ 成員設定 ============ -->
+  <div class="tab" id="tab-members">
+    <button class="fab-add" onclick="toggleForm('form-member')">＋ 新增夥伴</button>
+    <form class="inline" id="form-member">
+      <label>姓名</label><input type="text" id="mem-name">
+      <label>角色</label>
+      <select id="mem-role"><option>一般夥伴</option><option>管理者</option></select>
+      <div class="meta">管理者可以審核內部請款申請</div>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="submitMember()">新增</button>
+        <button type="button" class="btn" onclick="toggleForm('form-member')">取消</button>
+      </div>
+    </form>
+    <div id="list-members"></div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var STATE = { members:[], meetings:[], actionItems:[], projects:[], projectTasks:[], reimbursements:[], attendance:[], products:[], orders:[], orderItems:[] };
+var orderDraft = [];
+
+function getCurrentUser(){ return localStorage.getItem('menren_user') || ''; }
+function setCurrentUser(name){ localStorage.setItem('menren_user', name); }
+function isAdmin(){
+  var name = getCurrentUser();
+  var m = STATE.members.find(function(x){return x.name===name;});
+  return m && m.role === '管理者';
+}
+
+// -------- 初始載入 --------
+window.onload = function(){
+  google.script.run.withSuccessHandler(onDataLoaded).withFailureHandler(onError).getInitialData();
+
+  document.getElementById('m-date').value = todayStr();
+  document.getElementById('r-date').value = todayStr();
+  document.getElementById('a-date').value = todayStr();
+  document.getElementById('o-date').value = todayStr();
+};
+
+// -------- 分類導覽（首頁入口 → 分類頁 → 頁面） --------
+var CATEGORIES = {
+  meeting:    { name:'會議管理',   icon:'📋', pages:[{key:'meetings',  label:'會議記錄'}] },
+  project:    { name:'專案管理',   icon:'📁', pages:[{key:'projects',  label:'專案進度'}] },
+  finance:    { name:'請款管理',   icon:'💰', pages:[{key:'reimburse', label:'內部請款'}] },
+  attendance: { name:'出缺勤管理', icon:'🕒', pages:[{key:'attendance',label:'出缺勤紀錄'}] },
+  sales:      { name:'商品銷售',   icon:'🧾', pages:[{key:'products',  label:'商品'}, {key:'orders', label:'訂單'}] },
+  settings:   { name:'成員設定',   icon:'⚙️', pages:[{key:'members',   label:'成員設定'}] }
+};
+var PAGE_TO_CATEGORY = {};
+Object.keys(CATEGORIES).forEach(function(catKey){
+  CATEGORIES[catKey].pages.forEach(function(p){ PAGE_TO_CATEGORY[p.key] = catKey; });
+});
+
+function goHome(){
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.getElementById('tab-home').classList.add('active');
+  document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('active', b.dataset.cat === 'home'); });
+  document.getElementById('subnav').style.display = 'none';
+  window.scrollTo(0,0);
+}
+
+function goToPage(pageKey){
+  var catKey = PAGE_TO_CATEGORY[pageKey];
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.getElementById('tab-'+pageKey).classList.add('active');
+  document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('active', b.dataset.cat === catKey); });
+  renderSubnav(catKey, pageKey);
+  window.scrollTo(0,0);
+}
+
+function renderSubnav(catKey, activePageKey){
+  var box = document.getElementById('subnav');
+  var cat = CATEGORIES[catKey];
+  if(!cat){ box.style.display='none'; return; }
+  box.style.display = 'flex';
+  var html = '<button type="button" class="subnav-back" onclick="goHome()">‹ 首頁</button>';
+  html += '<span class="subnav-title">'+cat.icon+' '+cat.name+'</span>';
+  if(cat.pages.length > 1){
+    html += cat.pages.map(function(p){
+      return '<button type="button" class="subnav-chip'+(p.key===activePageKey?' active':'')+'" onclick="goToPage(\''+p.key+'\')">'+p.label+'</button>';
+    }).join('');
+  }
+  box.innerHTML = html;
+}
+
+function todayStr(){
+  var d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function onError(err){
+  document.getElementById('loading').style.display='none';
+  toast('發生錯誤：' + (err && err.message ? err.message : err));
+}
+
+function onDataLoaded(data){
+  STATE = data;
+  document.getElementById('loading').style.display='none';
+  refreshUserSelect();
+  renderAll();
+}
+
+function refreshUserSelect(){
+  var sel = document.getElementById('currentUserSelect');
+  var aSel = document.getElementById('a-name');
+  sel.innerHTML=''; aSel.innerHTML='';
+  if(STATE.members.length===0){
+    sel.innerHTML = '<option value="">請先新增夥伴</option>';
+    return;
+  }
+  STATE.members.forEach(function(m){
+    var o1=document.createElement('option'); o1.value=m.name; o1.textContent=m.name+(m.role==='管理者'?'（管理者）':'');
+    sel.appendChild(o1);
+    var o2=document.createElement('option'); o2.value=m.name; o2.textContent=m.name;
+    aSel.appendChild(o2);
+  });
+  var saved = getCurrentUser();
+  if(saved && STATE.members.some(function(m){return m.name===saved;})) sel.value = saved;
+  else setCurrentUser(sel.value);
+  sel.onchange = function(){ setCurrentUser(sel.value); renderAll(); };
+}
+
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');}, 2400);
+}
+
+function toggleForm(id){
+  document.getElementById(id).classList.toggle('open');
+  if(id==='form-meeting') renderPrevProgressBox();
+}
+
+function renderAll(){
+  renderHome();
+  renderMeetings();
+  renderProjects();
+  renderReimburse();
+  renderAttendance();
+  renderProducts();
+  renderOrders();
+  renderMembers();
+}
+
+// ===================== 首頁 =====================
+function renderHome(){
+  var user = getCurrentUser();
+  document.getElementById('home-greeting-text').textContent = user ? ('哈囉，'+user) : '哈囉！';
+  var d = new Date();
+  var weekdays = ['日','一','二','三','四','五','六'];
+  document.getElementById('home-date-text').textContent = d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日　星期'+weekdays[d.getDay()];
+
+  var openItems = STATE.actionItems.filter(function(i){ return i['狀態'] !== '已完成'; }).length;
+  var activeProjects = STATE.projects.filter(function(p){ return p['狀態'] !== '已完成'; }).length;
+  var pendingReimburse = STATE.reimbursements.filter(function(r){ return r['狀態']==='待審核'; });
+  var pendingReimburseAmount = pendingReimburse.reduce(function(s,r){ return s+Number(r['金額']||0); },0);
+  var thisMonth = todayStr().slice(0,7);
+  var attendanceThisMonth = STATE.attendance.filter(function(a){ return String(a['日期']).slice(0,7)===thisMonth; }).length;
+  var lowStock = STATE.products.filter(function(p){ return Number(p['庫存數量'])<=3; }).length;
+  var pendingOrders = STATE.orders.filter(function(o){ return o['出貨狀態']==='待處理'; }).length;
+
+  // 首頁入口卡片：對應到 CATEGORIES 裡的六大分類，點擊後進入該分類頁面
+  var cards = [
+    {cat:'meeting',    n:openItems,              l:'個未完成的追蹤事項', page:'meetings',  alert:openItems>0},
+    {cat:'project',    n:activeProjects,          l:'個進行中的專案',     page:'projects',  alert:false},
+    {cat:'finance',    n:pendingReimburse.length, l:'筆待審核（$'+pendingReimburseAmount+'）', page:'reimburse', alert:pendingReimburse.length>0},
+    {cat:'attendance', n:attendanceThisMonth,     l:'次本月遲到／請假',   page:'attendance',alert:false},
+    {cat:'sales',      n:lowStock,                l:'項庫存偏低・'+pendingOrders+' 筆待處理訂單', page:'products', alert:(lowStock>0||pendingOrders>0)},
+    {cat:'settings',   n:STATE.members.length,    l:'位夥伴',             page:'members',   alert:false}
+  ];
+  document.getElementById('home-grid').innerHTML = cards.map(function(c){
+    var cat = CATEGORIES[c.cat];
+    return '<button type="button" class="home-card" onclick="goToPage(\''+c.page+'\')">'+
+      '<div class="icon">'+cat.icon+'</div>'+
+      '<div class="n'+(c.alert?' alert':'')+'">'+c.n+'</div>'+
+      '<div class="l">'+esc(cat.name)+'　'+c.l+'</div>'+
+    '</button>';
+  }).join('');
+
+  // 最近動態：合併各模組最新紀錄，依時間排序取前6筆
+  var feed = [];
+  STATE.meetings.forEach(function(m){ feed.push({t:m['建立時間']||m['日期'], tag:'會議', txt:m['主題'], tab:'meetings'}); });
+  STATE.projects.forEach(function(p){ feed.push({t:p['建立日期'], tag:'專案', txt:'建立專案「'+p['專案名稱']+'」', tab:'projects'}); });
+  STATE.reimbursements.forEach(function(r){ feed.push({t:r['申請日期'], tag:'請款', txt:r['申請人']+' 申請 $'+r['金額']+'（'+r['狀態']+'）', tab:'reimburse'}); });
+  STATE.attendance.forEach(function(a){ feed.push({t:a['記錄時間']||a['日期'], tag:'出缺勤', txt:a['姓名']+' '+a['類型'], tab:'attendance'}); });
+  STATE.orders.forEach(function(o){ feed.push({t:o['建立時間']||o['訂單日期'], tag:'訂單', txt:o['客戶名稱']+' 訂購 $'+o['總金額'], tab:'orders'}); });
+  feed.sort(function(a,b){ return String(b.t) < String(a.t) ? -1 : 1; });
+  feed = feed.slice(0,6);
+
+  var feedBox = document.getElementById('home-feed');
+  if(feed.length===0){ feedBox.innerHTML = '<div class="empty">還沒有任何紀錄，開始使用各項功能後這裡會顯示最新動態</div>'; return; }
+  feedBox.innerHTML = feed.map(function(f){
+    return '<div class="feed-item" style="cursor:pointer;" onclick="goToPage(\''+f.tab+'\')">'+
+      '<span class="tag">'+f.tag+'</span>'+
+      '<div class="txt">'+esc(f.txt)+'<div class="t">'+esc(f.t)+'</div></div>'+
+    '</div>';
+  }).join('');
+}
+
+// ===================== 會議記錄 =====================
+function renderPrevProgressBox(){
+  var open = STATE.actionItems.filter(function(i){ return i['狀態'] !== '已完成'; });
+  var box = document.getElementById('prev-progress-box');
+  if(open.length===0){ box.innerHTML=''; return; }
+  var html = '<label>上次未完成事項追蹤（可於下方各會議卡片內更新狀態）</label>';
+  html += open.map(function(i){
+    return '<div class="item-line">• '+esc(i['事項內容'])+'　<span class="meta">負責人：'+esc(i['負責人']||'未指定')+'　狀態：'+esc(i['狀態'])+'</span></div>';
+  }).join('');
+  box.innerHTML = html;
+}
+
+function submitMeeting(){
+  var topic = document.getElementById('m-topic').value.trim();
+  if(!topic){ toast('請輸入會議主題'); return; }
+  var payload = {
+    date: document.getElementById('m-date').value || todayStr(),
+    topic: topic,
+    content: document.getElementById('m-content').value,
+    recorder: getCurrentUser()
+  };
+  var itemContent = document.getElementById('m-item-content').value.trim();
+  var itemOwner = document.getElementById('m-item-owner').value.trim();
+
+  google.script.run.withSuccessHandler(function(meetingId){
+    var afterMeeting = function(){
+      toggleForm('form-meeting');
+      document.getElementById('m-topic').value='';
+      document.getElementById('m-content').value='';
+      document.getElementById('m-item-content').value='';
+      document.getElementById('m-item-owner').value='';
+      reload();
+    };
+    if(itemContent){
+      google.script.run.withSuccessHandler(afterMeeting).addActionItem({meetingId:meetingId, content:itemContent, owner:itemOwner});
+    } else { afterMeeting(); }
+  }).withFailureHandler(onError).addMeeting(payload);
+}
+
+function renderMeetings(){
+  var list = document.getElementById('list-meetings');
+  if(STATE.meetings.length===0){ list.innerHTML='<div class="empty">還沒有會議記錄，點上方按鈕新增第一筆吧！</div>'; return; }
+  list.innerHTML = STATE.meetings.map(function(m){
+    var items = STATE.actionItems.filter(function(i){ return i['會議ID']===m['ID']; });
+    var itemsHtml = items.map(function(i){
+      return '<div class="item-line row">'+
+        '<div>• '+esc(i['事項內容'])+' <span class="badge '+esc(i['狀態'])+'">'+esc(i['狀態'])+'</span>'+
+        '<div class="meta">負責人：'+esc(i['負責人']||'未指定')+(i['期限']?('　期限：'+esc(i['期限'])):'')+'</div></div>'+
+        '<div>'+statusSelectHtml(i['ID'], i['狀態'])+'</div></div>';
+    }).join('') || '<div class="meta">尚無追蹤事項</div>';
+    return '<div class="card">'+
+      '<div class="row"><h3>'+esc(m['主題'])+'</h3><span class="meta">'+esc(m['日期'])+'</span></div>'+
+      '<div class="meta">記錄人：'+esc(m['記錄人']||'-')+'</div>'+
+      (m['內容'] ? '<p style="font-size:13.5px;white-space:pre-wrap;">'+esc(m['內容'])+'</p>' : '')+
+      '<div style="margin-top:6px;"><b style="font-size:13px;">追蹤事項</b>'+itemsHtml+'</div>'+
+      '<div class="row" style="margin-top:10px;">'+
+        '<input type="text" placeholder="新增待辦事項…" id="newitem-'+m['ID']+'" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;">'+
+        '<button class="btn btn-sm" onclick="quickAddItem(\''+m['ID']+'\')">新增</button>'+
+        '<button class="btn btn-sm btn-danger" onclick="removeMeeting(\''+m['ID']+'\')">刪除會議</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function statusSelectHtml(id, current){
+  var opts = ['待處理','進行中','已完成'];
+  return '<select class="btn-sm" style="padding:4px;border-radius:6px;" onchange="changeItemStatus(\''+id+'\',this.value)">'+
+    opts.map(function(o){return '<option '+(o===current?'selected':'')+'>'+o+'</option>';}).join('')+
+  '</select>';
+}
+
+function changeItemStatus(id, status){
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).updateActionItem(id, {status:status});
+}
+
+function quickAddItem(meetingId){
+  var input = document.getElementById('newitem-'+meetingId);
+  var content = input.value.trim();
+  if(!content) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).addActionItem({meetingId:meetingId, content:content, owner:getCurrentUser()});
+}
+
+function removeMeeting(id){
+  if(!confirm('確定要刪除這筆會議記錄嗎？相關追蹤事項也會一併刪除。')) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).deleteMeeting(id);
+}
+
+// ===================== 專案進度 =====================
+function submitProject(){
+  var name = document.getElementById('p-name').value.trim();
+  if(!name){ toast('請輸入專案名稱'); return; }
+  google.script.run.withSuccessHandler(function(){
+    toggleForm('form-project');
+    document.getElementById('p-name').value='';
+    document.getElementById('p-desc').value='';
+    reload();
+  }).withFailureHandler(onError).addProject({name:name, desc:document.getElementById('p-desc').value});
+}
+
+function renderProjects(){
+  var list = document.getElementById('list-projects');
+  if(STATE.projects.length===0){ list.innerHTML='<div class="empty">還沒有專案，點上方按鈕建立第一個專案！</div>'; return; }
+  list.innerHTML = STATE.projects.map(function(p){
+    var tasks = STATE.projectTasks.filter(function(t){ return t['專案ID']===p['ID']; });
+    var done = tasks.filter(function(t){return t['狀態']==='已完成';}).length;
+    var pct = tasks.length ? Math.round(done/tasks.length*100) : 0;
+    var tasksHtml = tasks.map(function(t){
+      return '<div class="item-line">'+
+        '<div class="row"><div>• '+esc(t['事項內容'])+' <span class="badge '+esc(t['狀態'])+'">'+esc(t['狀態'])+'</span></div>'+
+        '<div>'+projTaskStatusHtml(t['ID'], t['狀態'])+'</div></div>'+
+        '<div class="meta">負責人：'+esc(t['負責人']||'未指定')+(t['期限']?('　期限：'+esc(t['期限'])):'')+'</div>'+
+        '</div>';
+    }).join('') || '<div class="meta">尚無事項，於下方新增</div>';
+    return '<div class="card">'+
+      '<div class="row"><h3>'+esc(p['專案名稱'])+'</h3><span class="badge 進行中">'+esc(p['狀態'])+'</span></div>'+
+      (p['說明'] ? '<p class="meta">'+esc(p['說明'])+'</p>' : '')+
+      '<div class="progress-bar"><div style="width:'+pct+'%;"></div></div>'+
+      '<div class="meta">完成度 '+pct+'%（'+done+'/'+tasks.length+'）</div>'+
+      '<div style="margin-top:8px;">'+tasksHtml+'</div>'+
+      '<div class="row" style="margin-top:10px;gap:6px;">'+
+        '<input type="text" placeholder="事項內容" id="pt-content-'+p['ID']+'" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;">'+
+        '<select id="pt-owner-'+p['ID']+'" style="padding:6px;border-radius:6px;border:1px solid var(--border);font-size:13px;">'+
+          STATE.members.map(function(m){return '<option>'+esc(m.name)+'</option>';}).join('')+
+        '</select>'+
+        '<button class="btn btn-sm" onclick="quickAddTask(\''+p['ID']+'\')">新增事項</button>'+
+      '</div>'+
+      '<div style="margin-top:6px;text-align:right;"><button class="btn btn-sm btn-danger" onclick="removeProject(\''+p['ID']+'\')">刪除專案</button></div>'+
+    '</div>';
+  }).join('');
+}
+
+function projTaskStatusHtml(id, current){
+  var opts = ['待處理','進行中','已完成'];
+  return '<select class="btn-sm" style="padding:4px;border-radius:6px;" onchange="changeTaskStatus(\''+id+'\',this.value)">'+
+    opts.map(function(o){return '<option '+(o===current?'selected':'')+'>'+o+'</option>';}).join('')+
+  '</select>';
+}
+
+function changeTaskStatus(id, status){
+  var progress = status==='已完成' ? 100 : (status==='進行中' ? 50 : 0);
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).updateProjectTask(id, {status:status, progress:progress});
+}
+
+function quickAddTask(projectId){
+  var content = document.getElementById('pt-content-'+projectId).value.trim();
+  var owner = document.getElementById('pt-owner-'+projectId).value;
+  if(!content) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).addProjectTask({projectId:projectId, content:content, owner:owner});
+}
+
+function removeProject(id){
+  if(!confirm('確定要刪除這個專案嗎？專案內所有事項也會一併刪除。')) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).deleteProject(id);
+}
+
+// ===================== 內部請款 =====================
+function submitReimburse(){
+  var amount = Number(document.getElementById('r-amount').value);
+  if(!amount || amount<=0){ toast('請輸入正確金額'); return; }
+  var payload = {
+    applicant: getCurrentUser(),
+    date: document.getElementById('r-date').value || todayStr(),
+    category: document.getElementById('r-category').value,
+    amount: amount,
+    desc: document.getElementById('r-desc').value
+  };
+  google.script.run.withSuccessHandler(function(){
+    toggleForm('form-reimburse');
+    document.getElementById('r-amount').value='';
+    document.getElementById('r-desc').value='';
+    reload();
+    toast('已送出請款申請');
+  }).withFailureHandler(onError).addReimbursement(payload);
+}
+
+function renderReimburse(){
+  var filter = document.getElementById('r-filter').value;
+  var list = document.getElementById('list-reimburse');
+  var data = STATE.reimbursements.filter(function(r){ return filter==='all' || r['狀態']===filter; });
+  if(data.length===0){ list.innerHTML='<div class="empty">沒有請款紀錄</div>'; return; }
+  list.innerHTML = data.map(function(r){
+    var canReview = isAdmin() && r['狀態']==='待審核';
+    return '<div class="card">'+
+      '<div class="row"><h3>'+esc(r['申請人'])+'　<span class="amount">$'+esc(r['金額'])+'</span></h3><span class="badge '+esc(r['狀態'])+'">'+esc(r['狀態'])+'</span></div>'+
+      '<div class="meta">'+esc(r['申請日期'])+'　類別：'+esc(r['類別'])+'</div>'+
+      (r['說明'] ? '<p style="font-size:13.5px;">'+esc(r['說明'])+'</p>' : '')+
+      (r['狀態']!=='待審核' ? '<div class="meta">審核人：'+esc(r['審核人']||'-')+(r['審核備註']?('　備註：'+esc(r['審核備註'])):'')+'</div>' : '')+
+      (canReview ? '<div class="row" style="margin-top:8px;">'+
+        '<button class="btn btn-sm btn-primary" onclick="reviewR(\''+r['ID']+'\',\'已核准\')">核准</button>'+
+        '<button class="btn btn-sm btn-danger" onclick="reviewR(\''+r['ID']+'\',\'已拒絕\')">拒絕</button>'+
+      '</div>' : '')+
+      '<div style="margin-top:6px;text-align:right;"><button class="btn btn-sm btn-danger" onclick="removeReimburse(\''+r['ID']+'\')">刪除</button></div>'+
+    '</div>';
+  }).join('');
+}
+
+function reviewR(id, status){
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).reviewReimbursement(id, {status:status, reviewer:getCurrentUser()});
+}
+
+function removeReimburse(id){
+  if(!confirm('確定要刪除這筆請款紀錄嗎？')) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).deleteReimbursement(id);
+}
+
+// ===================== 出缺勤 =====================
+function submitAttendance(){
+  var payload = {
+    name: document.getElementById('a-name').value,
+    date: document.getElementById('a-date').value || todayStr(),
+    type: document.getElementById('a-type').value,
+    reason: document.getElementById('a-reason').value
+  };
+  if(!payload.name){ toast('請先新增夥伴'); return; }
+  google.script.run.withSuccessHandler(function(){
+    toggleForm('form-attendance');
+    document.getElementById('a-reason').value='';
+    reload();
+  }).withFailureHandler(onError).addAttendance(payload);
+}
+
+function renderAttendance(){
+  var statsBox = document.getElementById('attendance-stats');
+  var counts = {};
+  STATE.attendance.forEach(function(a){
+    var key = a['姓名'];
+    counts[key] = counts[key] || {遲到:0,請假:0,未到:0};
+    counts[key][a['類型']] = (counts[key][a['類型']]||0)+1;
+  });
+  var names = Object.keys(counts);
+  statsBox.innerHTML = names.length===0 ? '' : names.map(function(n){
+    var c = counts[n];
+    return '<div class="stat"><b>'+n+'</b><span>遲到'+c['遲到']+'／請假'+c['請假']+'／未到'+c['未到']+'</span></div>';
+  }).join('');
+
+  var list = document.getElementById('list-attendance');
+  if(STATE.attendance.length===0){ list.innerHTML='<div class="empty">還沒有出缺勤紀錄</div>'; return; }
+  list.innerHTML = STATE.attendance.map(function(a){
+    return '<div class="card">'+
+      '<div class="row"><h3>'+esc(a['姓名'])+' <span class="badge '+esc(a['類型'])+'">'+esc(a['類型'])+'</span></h3><span class="meta">'+esc(a['日期'])+'</span></div>'+
+      (a['原因'] ? '<p style="font-size:13.5px;">'+esc(a['原因'])+'</p>' : '')+
+      '<div style="text-align:right;"><button class="btn btn-sm btn-danger" onclick="removeAttendance(\''+a['ID']+'\')">刪除</button></div>'+
+    '</div>';
+  }).join('');
+}
+
+function removeAttendance(id){
+  if(!confirm('確定要刪除這筆紀錄嗎？')) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).deleteAttendance(id);
+}
+
+// ===================== 商品 =====================
+function submitProduct(){
+  var name = document.getElementById('pr-name').value.trim();
+  if(!name){ toast('請輸入商品名稱'); return; }
+  var payload = {
+    name: name,
+    price: Number(document.getElementById('pr-price').value) || 0,
+    stock: Number(document.getElementById('pr-stock').value) || 0,
+    desc: document.getElementById('pr-desc').value
+  };
+  google.script.run.withSuccessHandler(function(){
+    toggleForm('form-product');
+    document.getElementById('pr-name').value='';
+    document.getElementById('pr-price').value='';
+    document.getElementById('pr-stock').value='0';
+    document.getElementById('pr-desc').value='';
+    reload();
+  }).withFailureHandler(onError).addProduct(payload);
+}
+
+function renderProducts(){
+  var list = document.getElementById('list-products');
+  refreshProductSelect();
+  if(STATE.products.length===0){ list.innerHTML='<div class="empty">還沒有商品，點上方按鈕新增第一項商品！</div>'; return; }
+  list.innerHTML = STATE.products.map(function(p){
+    var low = Number(p['庫存數量']) <= 3;
+    return '<div class="card">'+
+      '<div class="row"><h3>'+esc(p['商品名稱'])+'</h3><span class="amount">$'+esc(p['售價'])+'</span></div>'+
+      (p['說明'] ? '<p class="meta">'+esc(p['說明'])+'</p>' : '')+
+      '<div class="row"><span class="'+(low?'badge 未到':'meta')+'">庫存：'+esc(p['庫存數量'])+(low?'（庫存偏低）':'')+'</span></div>'+
+      '<div class="row" style="margin-top:8px;gap:6px;">'+
+        '<button class="btn btn-sm" onclick="adjustProductStock(\''+p['ID']+'\','+Number(p['庫存數量'])+')">調整庫存</button>'+
+        '<button class="btn btn-sm" onclick="editProductPrice(\''+p['ID']+'\','+Number(p['售價'])+')">修改售價</button>'+
+        '<button class="btn btn-sm btn-danger" onclick="removeProduct(\''+p['ID']+'\')">刪除</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function adjustProductStock(id, currentStock){
+  var v = prompt('輸入要調整的庫存數量（補貨輸入正數，例如 10；扣減輸入負數，例如 -5）', '0');
+  if(v===null) return;
+  var delta = Number(v);
+  if(isNaN(delta)){ toast('請輸入數字'); return; }
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).updateProduct(id, {stock: currentStock + delta});
+}
+
+function editProductPrice(id, currentPrice){
+  var v = prompt('輸入新的售價', currentPrice);
+  if(v===null) return;
+  var price = Number(v);
+  if(isNaN(price)){ toast('請輸入數字'); return; }
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).updateProduct(id, {price: price});
+}
+
+function removeProduct(id){
+  if(!confirm('確定要刪除這項商品嗎？')) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).deleteProduct(id);
+}
+
+function refreshProductSelect(){
+  var sel = document.getElementById('o-product');
+  if(!sel) return;
+  var keep = sel.value;
+  sel.innerHTML = STATE.products.map(function(p){
+    return '<option value="'+p['ID']+'">'+esc(p['商品名稱'])+'（庫存'+esc(p['庫存數量'])+'／$'+esc(p['售價'])+'）</option>';
+  }).join('');
+  if(keep) sel.value = keep;
+}
+
+// ===================== 訂單 =====================
+function addToDraft(){
+  var sel = document.getElementById('o-product');
+  var productId = sel.value;
+  var qty = Number(document.getElementById('o-qty').value);
+  if(!productId){ toast('請先新增商品'); return; }
+  if(!qty || qty<=0){ toast('請輸入正確數量'); return; }
+  var prod = STATE.products.find(function(p){ return p['ID']===productId; });
+  if(!prod) return;
+  orderDraft.push({ productId: productId, productName: prod['商品名稱'], price: Number(prod['售價']), qty: qty });
+  document.getElementById('o-qty').value = '1';
+  renderDraft();
+}
+
+function removeDraftItem(idx){
+  orderDraft.splice(idx,1);
+  renderDraft();
+}
+
+function renderDraft(){
+  var box = document.getElementById('order-draft');
+  if(orderDraft.length===0){ box.innerHTML='<div class="meta">尚未加入商品</div>'; return; }
+  var total=0;
+  var html = orderDraft.map(function(it, idx){
+    total += it.price*it.qty;
+    return '<div class="item-line row"><div>'+esc(it.productName)+' × '+it.qty+'　$'+(it.price*it.qty)+'</div>'+
+      '<button type="button" class="btn btn-sm btn-danger" onclick="removeDraftItem('+idx+')">移除</button></div>';
+  }).join('');
+  html += '<div style="text-align:right;margin-top:6px;" class="amount">總計 $'+total+'</div>';
+  box.innerHTML = html;
+}
+
+function submitOrder(){
+  if(orderDraft.length===0){ toast('請先加入至少一項商品'); return; }
+  var customerName = document.getElementById('o-customer').value.trim();
+  if(!customerName){ toast('請輸入客戶名稱'); return; }
+  var payload = {
+    date: document.getElementById('o-date').value || todayStr(),
+    customerName: customerName,
+    contact: document.getElementById('o-contact').value,
+    note: document.getElementById('o-note').value,
+    items: orderDraft
+  };
+  google.script.run.withSuccessHandler(function(){
+    orderDraft = [];
+    renderDraft();
+    toggleForm('form-order');
+    document.getElementById('o-customer').value='';
+    document.getElementById('o-contact').value='';
+    document.getElementById('o-note').value='';
+    reload();
+    toast('訂單已建立');
+  }).withFailureHandler(onError).addOrder(payload);
+}
+
+function renderOrders(){
+  var statsBox = document.getElementById('order-stats');
+  var validOrders = STATE.orders.filter(function(o){ return o['出貨狀態'] !== '取消'; });
+  var revenue = validOrders.reduce(function(s,o){ return s + Number(o['總金額']||0); }, 0);
+  var pending = STATE.orders.filter(function(o){ return o['出貨狀態']==='待處理'; }).length;
+  var qtyByProduct = {};
+  STATE.orderItems.forEach(function(it){
+    var order = STATE.orders.find(function(o){ return o['ID']===it['訂單ID']; });
+    if(order && order['出貨狀態'] !== '取消'){
+      qtyByProduct[it['商品名稱']] = (qtyByProduct[it['商品名稱']]||0) + Number(it['數量']);
+    }
+  });
+  var top = Object.keys(qtyByProduct).map(function(k){ return {name:k, qty:qtyByProduct[k]}; }).sort(function(a,b){ return b.qty-a.qty; });
+  statsBox.innerHTML =
+    '<div class="stat"><b>$'+revenue+'</b><span>總營收（不含取消）</span></div>'+
+    '<div class="stat"><b>'+pending+'</b><span>待處理訂單</span></div>'+
+    (top.length ? '<div class="stat"><b>'+esc(top[0].name)+'</b><span>熱銷第一名（'+top[0].qty+'件）</span></div>' : '');
+
+  var list = document.getElementById('list-orders');
+  if(STATE.orders.length===0){ list.innerHTML='<div class="empty">還沒有訂單，點上方按鈕建立第一筆訂單！</div>'; return; }
+  list.innerHTML = STATE.orders.map(function(o){
+    var items = STATE.orderItems.filter(function(i){ return i['訂單ID']===o['ID']; });
+    var itemsHtml = items.map(function(i){ return '<div class="item-line">• '+esc(i['商品名稱'])+' × '+esc(i['數量'])+'　$'+esc(i['小計'])+'</div>'; }).join('');
+    return '<div class="card">'+
+      '<div class="row"><h3>'+esc(o['客戶名稱'])+'　<span class="amount">$'+esc(o['總金額'])+'</span></h3><span class="meta">'+esc(o['訂單日期'])+'</span></div>'+
+      (o['聯絡方式'] ? '<div class="meta">聯絡方式：'+esc(o['聯絡方式'])+'</div>' : '')+
+      itemsHtml+
+      (o['備註'] ? '<p style="font-size:13px;">備註：'+esc(o['備註'])+'</p>' : '')+
+      '<div class="row" style="margin-top:8px;">'+
+        '<div>付款：'+paymentSelectHtml(o['ID'], o['付款狀態'])+'</div>'+
+        '<div>出貨：'+shipSelectHtml(o['ID'], o['出貨狀態'])+'</div>'+
+      '</div>'+
+      '<div style="margin-top:6px;text-align:right;"><button class="btn btn-sm btn-danger" onclick="removeOrder(\''+o['ID']+'\')">刪除訂單</button></div>'+
+    '</div>';
+  }).join('');
+}
+
+function paymentSelectHtml(id, current){
+  var opts = ['未付款','部分付款','已付款'];
+  return '<select class="btn-sm" style="padding:4px;border-radius:6px;" onchange="changeOrderStatus(\''+id+'\',{paymentStatus:this.value})">'+
+    opts.map(function(o){ return '<option '+(o===current?'selected':'')+'>'+o+'</option>'; }).join('')+
+  '</select>';
+}
+
+function shipSelectHtml(id, current){
+  var opts = ['待處理','已出貨','已完成','取消'];
+  return '<select class="btn-sm" style="padding:4px;border-radius:6px;" onchange="changeOrderStatus(\''+id+'\',{shipStatus:this.value})">'+
+    opts.map(function(o){ return '<option '+(o===current?'selected':'')+'>'+o+'</option>'; }).join('')+
+  '</select>';
+}
+
+function changeOrderStatus(id, payload){
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).updateOrderStatus(id, payload);
+}
+
+function removeOrder(id){
+  if(!confirm('確定要刪除這筆訂單嗎？尚未取消的訂單刪除後會自動回補庫存。')) return;
+  google.script.run.withSuccessHandler(reload).withFailureHandler(onError).deleteOrder(id);
+}
+
+// ===================== 成員設定 =====================
+function showAddMember(){
+  document.querySelector('nav button[data-tab="members"]').click();
+  toggleForm('form-member');
+}
+
+function submitMember(){
+  var name = document.getElementById('mem-name').value.trim();
+  var role = document.getElementById('mem-role').value;
+  if(!name){ toast('請輸入姓名'); return; }
+  google.script.run.withSuccessHandler(function(){
+    toggleForm('form-member');
+    document.getElementById('mem-name').value='';
+    reload(true);
+  }).withFailureHandler(onError).addMember(name, role);
+}
+
+function renderMembers(){
+  var list = document.getElementById('list-members');
+  if(STATE.members.length===0){ list.innerHTML='<div class="empty">還沒有成員，先新增第一位夥伴！</div>'; return; }
+  list.innerHTML = STATE.members.map(function(m){
+    return '<div class="card row">'+
+      '<div><b>'+esc(m.name)+'</b> <span class="meta">'+esc(m.role)+'</span></div>'+
+      '<button class="btn btn-sm btn-danger" onclick="removeMember(\''+esc(m.name)+'\')">移除</button>'+
+    '</div>';
+  }).join('');
+}
+
+function removeMember(name){
+  if(!confirm('確定要移除「'+name+'」嗎？')) return;
+  google.script.run.withSuccessHandler(function(){ reload(true); }).withFailureHandler(onError).deleteMember(name);
+}
+
+// ===================== 共用：重新載入資料 =====================
+function reload(keepUserRefresh){
+  google.script.run.withSuccessHandler(function(data){
+    STATE = data;
+    if(keepUserRefresh) refreshUserSelect();
+    renderAll();
+  }).withFailureHandler(onError).getInitialData();
+}
+
+function esc(s){
+  if(s===undefined || s===null) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+</script>
+</body>
+</html>
