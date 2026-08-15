@@ -149,12 +149,20 @@
           <div class="todo-section-head">
             <span id="project-income-label">收入登記</span>
           </div>
-          <div class="income-subgrid">
+          <div class="income-subgrid" id="project-income-onetime-fields">
             <label>入帳月份
               <input type="month" id="project-income-month" />
             </label>
             <label>收入
               <input type="number" id="project-income-amount" min="0" step="1" />
+            </label>
+          </div>
+          <div class="income-subgrid" id="project-income-longterm-fields" style="display:none;">
+            <label>起始月份
+              <input type="month" id="project-longterm-start-month" />
+            </label>
+            <label>每月固定金額
+              <input type="number" id="project-longterm-amount" min="0" step="1" />
             </label>
           </div>
           <p class="hint" id="project-income-hint"></p>

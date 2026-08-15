@@ -1,11 +1,12 @@
 :root {
-  --primary: #4472C4;
-  --primary-dark: #2F5597;
-  --bg: #F4F6FA;
+  --primary: #3A3A3A;
+  --primary-dark: #171717;
+  --bg: #F2F2F2;
   --card: #FFFFFF;
-  --border: #E1E5EE;
-  --text: #2B2E38;
-  --muted: #767C8C;
+  --border: #DDDDDD;
+  --text: #222222;
+  --muted: #6E6E6E;
+  --tint: #EDEDED;
   --ok: #2E7D32;
   --warn: #C77700;
   --danger: #C0392B;
@@ -155,7 +156,7 @@ input, select, textarea {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fbfcfe;
+  background: #FAFAFA;
 }
 
 textarea { resize: vertical; min-height: 60px; }
@@ -200,12 +201,12 @@ th, td {
   max-width: 160px;
 }
 
-th { color: var(--muted); font-weight: 600; background: #fafbfd; }
+th { color: var(--muted); font-weight: 600; background: #FAFAFA; }
 
 .table-wrap { overflow-x: auto; }
 
 tr.clickable-row { cursor: pointer; }
-tr.clickable-row:hover td { background: #EEF1F8; }
+tr.clickable-row:hover td { background: var(--tint); }
 
 .row-actions { display: flex; gap: 6px; white-space: nowrap; }
 
@@ -226,7 +227,7 @@ tr.clickable-row:hover td { background: #EEF1F8; }
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.75rem;
-  background: #EEF1F8;
+  background: var(--tint);
   color: var(--primary-dark);
 }
 
@@ -273,7 +274,7 @@ tr.clickable-row:hover td { background: #EEF1F8; }
 }
 
 button.secondary {
-  background: #EEF1F8;
+  background: var(--tint);
   color: var(--primary-dark);
   border: 1px solid var(--border);
   padding: 6px 12px;
@@ -323,10 +324,10 @@ button.secondary {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  background: #fbfcfe;
+  background: #FAFAFA;
 }
 
-.doc-item:hover { border-color: var(--primary); background: #EEF1F8; }
+.doc-item:hover { border-color: var(--primary); background: var(--tint); }
 
 .doc-item .doc-main { font-size: 0.92rem; flex: 1; }
 .doc-item .doc-main .doc-title { font-weight: 600; color: var(--text); }
@@ -338,7 +339,7 @@ button.secondary {
   margin-top: 8px;
   height: 6px;
   border-radius: 999px;
-  background: #EEF1F8;
+  background: var(--tint);
   overflow: hidden;
 }
 .progress-bar-fill {
@@ -352,7 +353,7 @@ button.secondary {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(20, 24, 36, 0.5);
+  background: rgba(20, 20, 20, 0.55);
   z-index: 100;
   align-items: flex-start;
   justify-content: center;
@@ -376,7 +377,7 @@ button.secondary {
   top: 14px;
   right: 16px;
   border: none;
-  background: #F0F1F4;
+  background: #EDEDED;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -406,7 +407,7 @@ button.secondary {
 
 .btn-edit, .btn-costitems {
   border: none;
-  background: #EEF1F8;
+  background: var(--tint);
   color: var(--primary-dark);
   padding: 5px 10px;
   border-radius: 6px;

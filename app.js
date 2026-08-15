@@ -559,6 +559,17 @@ function syncProjectSelectName(selectId, nameInputId) {
 }
 
 /**
+ * 把 "YYYY-MM" 格式的月份字串往後加 n 個月，回傳新的 "YYYY-MM" 字串。
+ */
+function addMonths(monthStr, n) {
+  const [y, m] = monthStr.split('-').map(Number);
+  const total = (y * 12 + (m - 1)) + n;
+  const newY = Math.floor(total / 12);
+  const newM = (total % 12) + 1;
+  return `${newY}-${String(newM).padStart(2, '0')}`;
+}
+
+/**
  * 找到（或自動建立）某個專案在某個月份的分潤結算列，回傳它的編號。
  * 如果已經有這筆結算，且有帶入 revenueToSet，會直接更新收入（不會產生重複紀錄）。
  * revenueToSet 傳 undefined 表示不動收入欄位（例如只是要登記支出時使用）。
@@ -1310,16 +1321,22 @@ function updateProjectIncomeFieldsVisibility() {
   const section = document.getElementById('project-income-fields');
   const label = document.getElementById('project-income-label');
   const hint = document.getElementById('project-income-hint');
+  const onetimeFields = document.getElementById('project-income-onetime-fields');
+  const longtermFields = document.getElementById('project-income-longterm-fields');
   if (!typeSel || !section) return;
 
   if (typeSel.value === '一次性專案') {
     section.style.display = 'block';
+    onetimeFields.style.display = 'grid';
+    longtermFields.style.display = 'none';
     label.textContent = '收入登記（選填）';
     hint.textContent = '填「收入」即可，送出專案後會自動建立一筆分潤結算；成本不用現在就知道，之後可以到「分潤結算」頁籤逐筆新增支出。';
   } else if (typeSel.value === '長期性專案') {
     section.style.display = 'block';
-    label.textContent = '本月收入登記（選填）';
-    hint.textContent = '可以先登記這個月的收入；之後每個月的收入，請到「分潤結算」頁籤新增。';
+    onetimeFields.style.display = 'none';
+    longtermFields.style.display = 'grid';
+    label.textContent = '每月固定收入登記（選填）';
+    hint.textContent = '填「起始月份」與「每月固定金額」，送出專案後會自動建立 12 個月的分潤結算（金額固定相同）；之後如果金額有變動，可以到「分潤結算」頁籤個別編輯調整。';
   } else {
     section.style.display = 'none';
   }
@@ -1344,13 +1361,25 @@ function setupProjectForm() {
 
     const incomeSection = document.getElementById('project-income-fields');
     const incomeVisible = incomeSection && incomeSection.style.display !== 'none';
+    const isLongTerm = data['專案類型'] === '長期性專案';
+
     const incomeMonthEl = document.getElementById('project-income-month');
     const incomeAmountEl = document.getElementById('project-income-amount');
     const incomeMonth = incomeMonthEl ? incomeMonthEl.value : '';
     const incomeAmount = incomeAmountEl ? incomeAmountEl.value : '';
 
-    if (incomeVisible && incomeAmount && !incomeMonth) {
+    const startMonthEl = document.getElementById('project-longterm-start-month');
+    const fixedAmountEl = document.getElementById('project-longterm-amount');
+    const startMonth = startMonthEl ? startMonthEl.value : '';
+    const fixedAmount = fixedAmountEl ? fixedAmountEl.value : '';
+
+    if (incomeVisible && !isLongTerm && incomeAmount && !incomeMonth) {
       msg.textContent = '❌ 有填「收入」的話，請一併選擇「入帳月份」';
+      msg.className = 'status-msg error';
+      return;
+    }
+    if (incomeVisible && isLongTerm && fixedAmount && !startMonth) {
+      msg.textContent = '❌ 有填「每月固定金額」的話，請一併選擇「起始月份」';
       msg.className = 'status-msg error';
       return;
     }
@@ -1380,7 +1409,18 @@ function setupProjectForm() {
       }
 
       let incomeNote = '';
-      if (incomeVisible && incomeAmount) {
+      if (incomeVisible && isLongTerm && fixedAmount && startMonth) {
+        for (let i = 0; i < 12; i++) {
+          const month = addMonths(startMonth, i);
+          await apiPost('projectSettlement', {
+            專案編號: projectId,
+            專案名稱: data['專案名稱'],
+            月份: month,
+            收入: fixedAmount
+          });
+        }
+        incomeNote = '，已自動建立 12 個月的分潤結算';
+      } else if (incomeVisible && !isLongTerm && incomeAmount) {
         await findOrCreateSettlement(projectId, data['專案名稱'], incomeMonth, incomeAmount);
         incomeNote = '，已登記收入';
       }
