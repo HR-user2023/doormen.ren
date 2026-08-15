@@ -41,9 +41,8 @@ const CATEGORIES = [
   }
 ];
 
-// 每個「頁面 key」對應要讀取哪一種資料（給列表用；會議記錄／專案建立改用歷史文件清單，不用這個表）
+// 每個「頁面 key」對應要讀取哪一種資料（給列表用；會議記錄／會議追蹤／專案建立／專案追蹤改用歷史文件清單，不用這個表）
 const VIEW_DATA_TYPE = {
-  'meeting-track': 'meetingTodo',
   'project-settlement': 'projectSettlement',
   'product-create': 'inventory',
   'product-orders': 'order',
@@ -66,10 +65,8 @@ const COLUMN_ORDER = {
 const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型']);
 const LINK_COLUMNS = new Set(['收據附件']);
 
-// 這種列表是「明細列」，點一列會打開來源文件（會議）的詳細頁
-const DETAIL_LINK = {
-  meetingTodo: { fk: '會議編號', open: (id) => openDetail('meeting', id) }
-};
+// 明細列表用：點一列可以打開來源文件的詳細頁（目前所有明細列表都已改成卡片式，暫時沒有用到，保留機制供之後使用）
+const DETAIL_LINK = {};
 
 // ---------- 通用「編輯」功能：每種資料類型的中文名稱＋可編輯欄位設定 ----------
 const TYPE_LABEL = {
@@ -253,10 +250,11 @@ function showView(viewKey) {
     btn.classList.toggle('active', btn.dataset.view === viewKey);
   });
 
-  if (viewKey === 'meeting-record') loadDocList('meeting');
+  if (viewKey === 'meeting-record') { loadDocList('meeting'); loadLastMeetingReference(); }
+  if (viewKey === 'meeting-track') loadMeetingTrackList();
   if (viewKey === 'project-create') loadDocList('project');
   if (viewKey === 'project-track') loadProjectTrackList();
-  if (viewKey === 'project-settlement') populateSettlementProjectSelect();
+  if (viewKey === 'project-settlement') { populateSettlementProjectSelect(); populateExpenseItemProjectSelect(); }
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -527,29 +525,169 @@ function closeCostItemsModal() {
   document.getElementById('costitem-overlay').classList.remove('active');
 }
 
-// ---------- 月結分潤：專案下拉選單（送出時要帶入專案編號＋專案名稱） ----------
-async function populateSettlementProjectSelect() {
-  const sel = document.getElementById('settlement-project-select');
-  if (!sel) return;
+// ---------- 分潤結算：專案下拉選單（登記收入、登記支出兩個表單共用） ----------
+async function populateProjectSelect(selectEl) {
+  if (!selectEl) return;
   try {
     const res = await apiGet({ action: 'list', type: 'project' });
     if (!res.ok) return;
     // 「大型專案」不做分潤結算，不列在這個選單裡
     const projects = res.data.slice().reverse().filter(p => p['專案類型'] !== '大型專案');
-    sel.innerHTML = '<option value="">請選擇專案</option>' +
+    selectEl.innerHTML = '<option value="">請選擇專案</option>' +
       projects.map(p => `<option value="${escapeHtml(p['編號'])}">${escapeHtml(p['專案名稱'] || '')}</option>`).join('');
   } catch (err) {
     console.error('讀取專案清單失敗', err);
   }
 }
 
-function setupSettlementProjectSync() {
-  const sel = document.getElementById('settlement-project-select');
-  const nameInput = document.getElementById('settlement-project-name');
+async function populateSettlementProjectSelect() {
+  await populateProjectSelect(document.getElementById('settlement-project-select'));
+}
+
+async function populateExpenseItemProjectSelect() {
+  await populateProjectSelect(document.getElementById('expense-item-project-select'));
+}
+
+function syncProjectSelectName(selectId, nameInputId) {
+  const sel = document.getElementById(selectId);
+  const nameInput = document.getElementById(nameInputId);
   if (!sel || !nameInput) return;
   sel.addEventListener('change', () => {
     const opt = sel.options[sel.selectedIndex];
     nameInput.value = opt ? opt.textContent : '';
+  });
+}
+
+/**
+ * 找到（或自動建立）某個專案在某個月份的分潤結算列，回傳它的編號。
+ * 如果已經有這筆結算，且有帶入 revenueToSet，會直接更新收入（不會產生重複紀錄）。
+ * revenueToSet 傳 undefined 表示不動收入欄位（例如只是要登記支出時使用）。
+ */
+async function findOrCreateSettlement(projectId, projectName, month, revenueToSet) {
+  const res = await apiGet({ action: 'list', type: 'projectSettlement' });
+  const rows = res.ok ? res.data : [];
+  const existing = rows.find(r => String(r['專案編號']) === String(projectId) && String(r['月份']) === String(month));
+
+  const hasRevenue = revenueToSet !== undefined && revenueToSet !== null && revenueToSet !== '';
+
+  if (existing) {
+    if (hasRevenue) {
+      await apiPostRaw({ action: 'update', type: 'projectSettlement', id: existing['編號'], data: { 收入: revenueToSet } });
+    }
+    return existing['編號'];
+  }
+
+  const createRes = await apiPost('projectSettlement', {
+    專案編號: projectId,
+    專案名稱: projectName,
+    月份: month,
+    收入: hasRevenue ? revenueToSet : 0
+  });
+  return createRes.id;
+}
+
+// ---------- 登記收入表單：同一個專案＋月份重複填會直接更新，不會產生重複結算列 ----------
+function setupSettlementForm() {
+  const form = document.getElementById('settlement-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const msg = form.querySelector('.status-msg');
+
+    const projectSelect = document.getElementById('settlement-project-select');
+    const projectId = projectSelect.value;
+    const projectName = document.getElementById('settlement-project-name').value;
+    const month = document.getElementById('settlement-month').value;
+    const income = document.getElementById('settlement-income').value;
+    const note = document.getElementById('settlement-note').value.trim();
+
+    if (!projectId || !month || income === '') {
+      msg.textContent = '❌ 請選擇專案、月份，並填寫收入';
+      msg.className = 'status-msg error';
+      return;
+    }
+
+    btn.disabled = true;
+    msg.textContent = '送出中…';
+    msg.className = 'status-msg';
+
+    try {
+      const id = await findOrCreateSettlement(projectId, projectName, month, income);
+      if (note) {
+        await apiPostRaw({ action: 'update', type: 'projectSettlement', id, data: { 備註: note } });
+      }
+      msg.textContent = `✅ 已儲存 ${month} 的收入`;
+      msg.className = 'status-msg ok';
+      form.reset();
+      document.getElementById('settlement-project-name').value = '';
+      loadList('projectSettlement', 'project-settlement');
+    } catch (err) {
+      msg.textContent = '❌ 送出失敗，請確認網路連線';
+      msg.className = 'status-msg error';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+// ---------- 登記支出表單：不用先知道收入、不用先建立分潤結算，直接選專案＋月份就能登記支出 ----------
+function setupExpenseItemQuickForm() {
+  const form = document.getElementById('expense-item-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const msg = form.querySelector('.status-msg');
+
+    const projectSelect = document.getElementById('expense-item-project-select');
+    const projectId = projectSelect.value;
+    const projectName = document.getElementById('expense-item-project-name').value;
+    const month = document.getElementById('expense-item-month').value;
+    const desc = document.getElementById('expense-item-desc').value.trim();
+    const amount = document.getElementById('expense-item-amount').value;
+    const note = document.getElementById('expense-item-note').value.trim();
+
+    if (!projectId || !month || !desc || amount === '') {
+      msg.textContent = '❌ 請選擇專案、月份，並填寫項目說明與金額';
+      msg.className = 'status-msg error';
+      return;
+    }
+
+    btn.disabled = true;
+    msg.textContent = '送出中…';
+    msg.className = 'status-msg';
+
+    try {
+      const settlementId = await findOrCreateSettlement(projectId, projectName, month, undefined);
+      const res = await apiPost('projectExpenseItem', {
+        分潤編號: settlementId,
+        專案名稱: projectName,
+        月份: month,
+        項目說明: desc,
+        金額: amount,
+        備註: note
+      });
+      if (res.ok) {
+        msg.textContent = `✅ 已新增支出（${month}）`;
+        msg.className = 'status-msg ok';
+        form.reset();
+        document.getElementById('expense-item-project-name').value = '';
+        loadList('projectSettlement', 'project-settlement');
+      } else {
+        msg.textContent = '❌ 新增失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    } catch (err) {
+      msg.textContent = '❌ 新增失敗，請確認網路連線';
+      msg.className = 'status-msg error';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
   });
 }
 
@@ -784,6 +922,109 @@ async function loadProjectTrackList() {
   }
 }
 
+// ---------- 會議追蹤：每次會議一張簡易卡片（以會議日期排序、待辦事項完成摘要），點進去才有完整內容 ----------
+async function loadMeetingTrackList() {
+  const container = document.querySelector('#view-meeting-track [data-doclist="meeting-track"]');
+  if (!container) return;
+  container.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const [meetingRes, todoRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'meeting' }),
+      apiGet({ action: 'list', type: 'meetingTodo' })
+    ]);
+    if (!meetingRes.ok) {
+      container.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(meetingRes.error || '')}</p>`;
+      return;
+    }
+    // 以會議日期排序（新到舊）
+    const meetings = meetingRes.data.slice().sort((a, b) => String(b['會議日期'] || '').localeCompare(String(a['會議日期'] || ''))).slice(0, 50);
+    const todos = todoRes.ok ? todoRes.data : [];
+    if (meetings.length === 0) {
+      container.innerHTML = '<p class="hint">目前還沒有會議記錄</p>';
+      return;
+    }
+
+    container.innerHTML = meetings.map(m => {
+      const mid = m['編號'];
+      const mTodos = todos.filter(t => String(t['會議編號']) === String(mid));
+      const total = mTodos.length;
+      const doneCount = mTodos.filter(t => t['狀態'] === '已完成').length;
+      const progressText = total === 0
+        ? '尚無待辦事項'
+        : `待辦事項 ${total} 筆・已完成 ${doneCount} 筆`;
+
+      return `
+        <div class="doc-item" data-id="${escapeHtml(mid || '')}">
+          <div class="doc-main">
+            <div class="doc-title">${escapeHtml(m['會議日期'] || '')}　${escapeHtml(m['會議主題'] || '（未命名）')}</div>
+            <div class="doc-meta">主持人：${escapeHtml(m['主持人'] || '-')}　${progressText}</div>
+            ${total > 0 ? `<div class="progress-bar"><div class="progress-bar-fill" style="width:${Math.round(doneCount / total * 100)}%"></div></div>` : ''}
+          </div>
+          <div class="doc-arrow">›</div>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.doc-item').forEach(el => {
+      el.addEventListener('click', () => openDetail('meeting', el.dataset.id));
+    });
+  } catch (err) {
+    container.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
+    console.error(err);
+  }
+}
+
+// ---------- 上次會議記錄（追溯參考）：新增會議記錄頁面上方顯示最近一次會議的內容與未完成待辦事項 ----------
+async function loadLastMeetingReference() {
+  const card = document.getElementById('last-meeting-ref-card');
+  const content = document.getElementById('last-meeting-ref-content');
+  if (!card || !content) return;
+  try {
+    const [meetingRes, todoRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'meeting' }),
+      apiGet({ action: 'list', type: 'meetingTodo' })
+    ]);
+    if (!meetingRes.ok || meetingRes.data.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
+    // 以會議日期找出最近一次的會議（日期相同時，用清單裡較後面的當作較新）
+    const meetings = meetingRes.data.slice().sort((a, b) => String(a['會議日期'] || '').localeCompare(String(b['會議日期'] || '')));
+    const last = meetings[meetings.length - 1];
+    const todos = (todoRes.ok ? todoRes.data : []).filter(t => String(t['會議編號']) === String(last['編號']));
+    const unfinished = todos.filter(t => t['狀態'] !== '已完成');
+
+    let todoHtml;
+    if (todos.length === 0) {
+      todoHtml = '<p class="hint">上次會議沒有待辦事項</p>';
+    } else {
+      todoHtml = '<table class="doc-todo-table"><thead><tr><th>待辦事項</th><th>負責人</th><th>狀態</th></tr></thead><tbody>' +
+        todos.map(t => `<tr>
+            <td>${escapeHtml(t['待辦事項內容'] || '')}</td>
+            <td>${escapeHtml(t['負責人'] || '')}</td>
+            <td>${tagHtml(t['狀態'])}</td>
+          </tr>`).join('') + '</tbody></table>';
+    }
+
+    content.innerHTML = `
+      <div class="doc-header-meta" style="margin-bottom:10px;">
+        <span>📅 ${escapeHtml(last['會議日期'] || '')}</span>
+        <span>📝 ${escapeHtml(last['會議主題'] || '')}</span>
+        <span>🙋 主持人：${escapeHtml(last['主持人'] || '')}</span>
+      </div>
+      ${docBlock('上次會議內容', last['本次會議內容'])}
+      <div class="doc-block">
+        <h4>上次待辦事項（共 ${todos.length} 筆，未完成 ${unfinished.length} 筆）</h4>
+        ${todoHtml}
+      </div>
+    `;
+    card.style.display = 'block';
+  } catch (err) {
+    card.style.display = 'none';
+    console.error(err);
+  }
+}
+
 // ---------- 詳細頁（彈窗，文件式，會議／專案共用） ----------
 function docBlock(title, value) {
   const has = value && String(value).trim();
@@ -851,12 +1092,23 @@ async function openMeetingDetail(meetingId) {
     `;
 
     document.getElementById('btn-edit-meeting').addEventListener('click', () => {
-      openEditModal('meeting', meeting, () => { openMeetingDetail(meetingId); loadDocList('meeting'); });
+      openEditModal('meeting', meeting, () => {
+        openMeetingDetail(meetingId);
+        loadDocList('meeting');
+        loadMeetingTrackList();
+        loadLastMeetingReference();
+      });
     });
     content.querySelectorAll('[data-todo-id]').forEach(btn => {
       btn.addEventListener('click', () => {
         const t = todos.find(x => String(x['編號']) === btn.dataset.todoId);
-        if (t) openEditModal('meetingTodo', t, () => openMeetingDetail(meetingId));
+        if (t) {
+          openEditModal('meetingTodo', t, () => {
+            openMeetingDetail(meetingId);
+            loadMeetingTrackList();
+            loadLastMeetingReference();
+          });
+        }
       });
     });
   } catch (err) {
@@ -1039,6 +1291,8 @@ function setupMeetingForm() {
       form.reset();
       resetTodoRows();
       loadDocList('meeting');
+      loadMeetingTrackList();
+      loadLastMeetingReference();
     } catch (err) {
       msg.textContent = '❌ 送出失敗，請確認設定或網路連線';
       msg.className = 'status-msg error';
@@ -1050,11 +1304,34 @@ function setupMeetingForm() {
 }
 
 // ---------- 專案表單：多筆工作事項的送出邏輯 ----------
+// 依「專案類型」自動顯示／隱藏收入登記欄位（一次性專案／長期性專案才需要填收入）
+function updateProjectIncomeFieldsVisibility() {
+  const typeSel = document.getElementById('project-type-select');
+  const section = document.getElementById('project-income-fields');
+  const label = document.getElementById('project-income-label');
+  const hint = document.getElementById('project-income-hint');
+  if (!typeSel || !section) return;
+
+  if (typeSel.value === '一次性專案') {
+    section.style.display = 'block';
+    label.textContent = '收入登記（選填）';
+    hint.textContent = '填「收入」即可，送出專案後會自動建立一筆分潤結算；成本不用現在就知道，之後可以到「分潤結算」頁籤逐筆新增支出。';
+  } else if (typeSel.value === '長期性專案') {
+    section.style.display = 'block';
+    label.textContent = '本月收入登記（選填）';
+    hint.textContent = '可以先登記這個月的收入；之後每個月的收入，請到「分潤結算」頁籤新增。';
+  } else {
+    section.style.display = 'none';
+  }
+}
+
 function setupProjectForm() {
   const form = document.getElementById('project-form');
   if (!form) return;
 
   document.getElementById('add-project-item-row').addEventListener('click', addProjectItemRow);
+  document.getElementById('project-type-select').addEventListener('change', updateProjectIncomeFieldsVisibility);
+  updateProjectIncomeFieldsVisibility();
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1064,6 +1341,19 @@ function setupProjectForm() {
     const data = {};
     new FormData(form).forEach((value, key) => { data[key] = value; });
     const itemRows = collectProjectItemRows();
+
+    const incomeSection = document.getElementById('project-income-fields');
+    const incomeVisible = incomeSection && incomeSection.style.display !== 'none';
+    const incomeMonthEl = document.getElementById('project-income-month');
+    const incomeAmountEl = document.getElementById('project-income-amount');
+    const incomeMonth = incomeMonthEl ? incomeMonthEl.value : '';
+    const incomeAmount = incomeAmountEl ? incomeAmountEl.value : '';
+
+    if (incomeVisible && incomeAmount && !incomeMonth) {
+      msg.textContent = '❌ 有填「收入」的話，請一併選擇「入帳月份」';
+      msg.className = 'status-msg error';
+      return;
+    }
 
     btn.disabled = true;
     msg.textContent = '送出中…';
@@ -1089,12 +1379,20 @@ function setupProjectForm() {
         });
       }
 
-      msg.textContent = `✅ 已送出（專案編號：${projectId}，工作事項 ${itemRows.length} 筆）`;
+      let incomeNote = '';
+      if (incomeVisible && incomeAmount) {
+        await findOrCreateSettlement(projectId, data['專案名稱'], incomeMonth, incomeAmount);
+        incomeNote = '，已登記收入';
+      }
+
+      msg.textContent = `✅ 已送出（專案編號：${projectId}，工作事項 ${itemRows.length} 筆${incomeNote}）`;
       msg.className = 'status-msg ok';
       form.reset();
       resetProjectItemRows();
+      updateProjectIncomeFieldsVisibility();
       loadDocList('project');
       loadProjectTrackList();
+      populateSettlementProjectSelect();
     } catch (err) {
       msg.textContent = '❌ 送出失敗，請確認設定或網路連線';
       msg.className = 'status-msg error';
@@ -1226,7 +1524,10 @@ function init() {
   setupMeetingForm();
   setupProjectForm();
   setupExpenseForm();
-  setupSettlementProjectSync();
+  setupSettlementForm();
+  setupExpenseItemQuickForm();
+  syncProjectSelectName('settlement-project-select', 'settlement-project-name');
+  syncProjectSelectName('expense-item-project-select', 'expense-item-project-name');
   resetTodoRows();
   resetProjectItemRows();
 
@@ -1254,6 +1555,7 @@ function init() {
   loadPartners();
   loadDatalist('inventory', '品項名稱', 'inventory-name-list');
   populateSettlementProjectSelect();
+  populateExpenseItemProjectSelect();
 }
 
 document.addEventListener('DOMContentLoaded', init);

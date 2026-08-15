@@ -40,6 +40,11 @@
 
   <!-- ============ 會議記錄（新增） ============ -->
   <section id="view-meeting-record" class="view content-view">
+    <div class="card" id="last-meeting-ref-card" style="display:none;">
+      <h2>上次會議記錄（追溯參考）</h2>
+      <p class="hint">可以參考這裡的內容，填寫下方的「追蹤上次進度」或新增待辦事項。</p>
+      <div id="last-meeting-ref-content"></div>
+    </div>
     <div class="card">
       <h2>新增會議記錄</h2>
       <form class="grid" id="meeting-form" data-type="meeting">
@@ -96,13 +101,12 @@
     </div>
   </template>
 
-  <!-- ============ 會議追蹤（以待辦事項為單位） ============ -->
+  <!-- ============ 會議追蹤（每次會議一張簡易卡片，以會議日期排序，點進去才有完整待辦事項與進度） ============ -->
   <section id="view-meeting-track" class="view content-view">
     <div class="card">
       <h2>會議追蹤</h2>
-      <p class="hint">這裡列出所有會議產生的待辦事項，可以看到每一筆各自的負責人與進度；點一列可以打開來源會議的完整內容。</p>
-      <label class="filter-toggle"><input type="checkbox" data-filter="meetingTodo" checked /> 只顯示未完成的待辦事項</label>
-      <div class="table-wrap" data-list="meetingTodo"></div>
+      <p class="hint">每次會議先顯示簡易進度，點一筆可以打開完整的待辦事項清單與內容。</p>
+      <div class="doc-list" data-doclist="meeting-track"></div>
     </div>
   </section>
 
@@ -115,7 +119,7 @@
           <input type="text" name="專案名稱" required />
         </label>
         <label>專案類型
-          <select name="專案類型" required>
+          <select name="專案類型" id="project-type-select" required>
             <option value="">請選擇類型</option>
             <option value="一次性專案">一次性專案（單次服務）</option>
             <option value="長期性專案">長期性專案（每月收費）</option>
@@ -141,6 +145,21 @@
           <input type="text" name="備註" />
         </label>
 
+        <div class="full todo-section" id="project-income-fields" style="display:none;">
+          <div class="todo-section-head">
+            <span id="project-income-label">收入登記</span>
+          </div>
+          <div class="income-subgrid">
+            <label>入帳月份
+              <input type="month" id="project-income-month" />
+            </label>
+            <label>收入
+              <input type="number" id="project-income-amount" min="0" step="1" />
+            </label>
+          </div>
+          <p class="hint" id="project-income-hint"></p>
+        </div>
+
         <div class="full todo-section">
           <div class="todo-section-head">
             <span>工作事項（可新增多筆，每筆可以指定不同負責人與進度）</span>
@@ -154,7 +173,7 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">有填「介紹人」的專案，之後在「月結分潤」頁籤記錄收入時，系統會自動多算一筆介紹人分潤。「大型專案」類型不會出現在月結分潤的專案選單裡。</p>
+      <p class="hint">有填「介紹人」的專案，之後在「分潤結算」頁籤記錄收入時，系統會自動多算一筆介紹人分潤。「大型專案」類型不會出現在分潤結算的專案選單裡。</p>
     </div>
     <div class="card">
       <h2>歷史專案</h2>
@@ -188,33 +207,60 @@
     </div>
   </section>
 
-  <!-- ============ 專案月結分潤（新增＋列表） ============ -->
+  <!-- ============ 專案分潤結算（登記收入＋登記支出＋列表） ============ -->
   <section id="view-project-settlement" class="view content-view">
     <div class="card">
-      <h2>新增分潤結算</h2>
-      <form class="grid" id="settlement-form" data-type="projectSettlement">
+      <h2>登記收入</h2>
+      <form class="grid" id="settlement-form">
         <label>專案
-          <select id="settlement-project-select" name="專案編號" required></select>
-          <input type="hidden" name="專案名稱" id="settlement-project-name" />
+          <select id="settlement-project-select" required></select>
+          <input type="hidden" id="settlement-project-name" />
         </label>
         <label>月份
-          <input type="month" name="月份" required />
+          <input type="month" id="settlement-month" required />
         </label>
         <label>收入
-          <input type="number" name="收入" min="0" step="1" required />
+          <input type="number" id="settlement-income" min="0" step="1" required />
         </label>
         <label class="full">備註
-          <input type="text" name="備註" />
+          <input type="text" id="settlement-note" />
         </label>
         <div class="submit-row">
-          <button type="submit" class="primary">送出分潤結算</button>
+          <button type="submit" class="primary">儲存收入</button>
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">先填「收入」送出即可，成本不用馬上知道 —— 送出後在下面列表點「支出明細」，之後可以隨時逐筆新增支出項目，成本、專案金額、分潤金額都會自動即時重算。一次性專案通常只需要送出一筆；「大型專案」類型的專案不會出現在上面的選單。</p>
+      <p class="hint">同一個專案、同一個月份重複填收入，會直接更新那個月的金額，不會產生重複紀錄。一次性專案通常只需要填一次；「大型專案」類型不會出現在上面的選單。</p>
+    </div>
+    <div class="card">
+      <h2>登記支出</h2>
+      <form class="grid" id="expense-item-form">
+        <label>專案
+          <select id="expense-item-project-select" required></select>
+          <input type="hidden" id="expense-item-project-name" />
+        </label>
+        <label>月份
+          <input type="month" id="expense-item-month" required />
+        </label>
+        <label class="full">項目說明
+          <input type="text" id="expense-item-desc" placeholder="例如：廠商發票、交通費" required />
+        </label>
+        <label>金額
+          <input type="number" id="expense-item-amount" min="0" step="1" required />
+        </label>
+        <label>備註
+          <input type="text" id="expense-item-note" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">新增支出</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <p class="hint">不用先知道收入、也不用先建立分潤結算，直接選專案跟月份填支出即可，系統會自動對應（或自動建立）那個月的分潤結算，可以隨時逐筆補上，成本、專案金額、分潤金額都會自動即時重算。</p>
     </div>
     <div class="card">
       <h2>分潤結算紀錄</h2>
+      <p class="hint">點「支出明細」可以看到某個月完整的支出項目清單並編輯。</p>
       <div class="table-wrap" data-list="projectSettlement"></div>
     </div>
   </section>

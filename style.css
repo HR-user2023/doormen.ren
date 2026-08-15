@@ -262,6 +262,16 @@ tr.clickable-row:hover td { background: #EEF1F8; }
   margin-bottom: 8px;
 }
 
+.income-subgrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+  margin-bottom: 6px;
+}
+@media (max-width: 600px) {
+  .income-subgrid { grid-template-columns: 1fr; }
+}
+
 button.secondary {
   background: #EEF1F8;
   color: var(--primary-dark);
