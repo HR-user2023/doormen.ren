@@ -447,8 +447,11 @@
     <div class="card">
       <h2>新增會員</h2>
       <form class="grid" data-type="member">
-        <label>姓名
-          <input type="text" name="姓名" required />
+        <label>會員名稱（店家/沙龍名稱）
+          <input type="text" name="會員名稱" required />
+        </label>
+        <label>聯絡人
+          <input type="text" name="聯絡人" />
         </label>
         <label>電話
           <input type="text" name="電話" />
@@ -456,20 +459,50 @@
         <label>Email
           <input type="email" name="Email" />
         </label>
-        <label>會員等級/方案
-          <input type="text" name="會員等級/方案" placeholder="例如：一般會員、VIP會員" />
+        <label>會員等級
+          <select name="會員等級" id="member-tier-select">
+            <option value="">請選擇等級</option>
+            <option value="共學者">共學者（年費6,000）</option>
+            <option value="共創者">共創者（年費18,000）</option>
+            <option value="領航者">領航者（年費36萬起）</option>
+          </select>
+        </label>
+        <label>年費
+          <input type="number" name="年費" id="member-fee-input" min="0" step="1" />
+        </label>
+        <label>押金
+          <input type="number" name="押金" id="member-deposit-input" min="0" step="1" value="3000" />
+        </label>
+        <label>會員狀態
+          <select name="會員狀態">
+            <option value="使用中">使用中</option>
+            <option value="已到期">已到期</option>
+            <option value="已退出">已退出</option>
+          </select>
+        </label>
+        <label>城市
+          <input type="text" name="城市" placeholder="例如：台北市" />
+        </label>
+        <label>所屬區域
+          <input type="text" name="所屬區域" placeholder="例如：信義區" />
         </label>
         <label>加入日期
           <input type="date" name="加入日期" />
         </label>
+        <label>到期日
+          <input type="date" name="到期日" />
+        </label>
         <label>介紹人
           <input type="text" name="介紹人" />
         </label>
-        <label>地址
+        <label class="full">地址
           <input type="text" name="地址" />
         </label>
-        <label>生日
-          <input type="date" name="生日" />
+        <label class="full">訪談評估：品牌理念
+          <textarea name="品牌理念評估" placeholder="了解對方的品牌理念、定位"></textarea>
+        </label>
+        <label class="full">訪談評估：營運狀況
+          <textarea name="營運狀況評估" placeholder="了解對方目前的營運狀況"></textarea>
         </label>
         <label class="full">備註
           <input type="text" name="備註" />
@@ -479,6 +512,7 @@
           <span class="status-msg"></span>
         </div>
       </form>
+      <p class="hint">選擇「會員等級」會自動帶入建議年費，仍可依實際洽談情況手動調整（領航者年費本來就是「36萬起」，會依實際狀況談定）。</p>
     </div>
   </section>
 

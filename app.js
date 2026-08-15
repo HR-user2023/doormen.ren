@@ -68,10 +68,11 @@ const COLUMN_ORDER = {
   attendance: ['日期', '姓名', '類型', '原因', '時數/天數', '本月累計次數', '備註'],
   inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '是否需補貨', '備註'],
   order: ['訂購日期', '品項名稱', '數量', '單價', '金額', '訂購人', '客戶/對象', '狀態', '備註'],
-  member: ['姓名', '電話', 'Email', '會員等級/方案', '加入日期', '介紹人', '地址', '生日', '備註']
+  member: ['會員名稱', '聯絡人', '電話', 'Email', '會員等級', '年費', '押金', '城市', '所屬區域',
+           '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註']
 };
 
-const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型']);
+const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態']);
 const LINK_COLUMNS = new Set(['收據附件']);
 
 // 明細列表用：點一列可以打開來源文件的詳細頁（目前所有明細列表都已改成卡片式，暫時沒有用到，保留機制供之後使用）
@@ -164,14 +165,22 @@ const FIELD_META = {
     備註: { type: 'text' }
   },
   member: {
-    姓名: { type: 'text' },
+    會員名稱: { type: 'text' },
+    聯絡人: { type: 'text', optional: true },
     電話: { type: 'text' },
     Email: { type: 'text' },
-    '會員等級/方案': { type: 'text' },
+    會員等級: { type: 'select', options: ['共學者', '共創者', '領航者'] },
+    年費: { type: 'number' },
+    押金: { type: 'number' },
+    城市: { type: 'text', optional: true },
+    所屬區域: { type: 'text', optional: true },
     加入日期: { type: 'date' },
+    到期日: { type: 'date', optional: true },
+    會員狀態: { type: 'select', options: ['使用中', '已到期', '已退出'] },
     介紹人: { type: 'text', optional: true },
     地址: { type: 'text' },
-    生日: { type: 'date' },
+    品牌理念評估: { type: 'textarea', optional: true },
+    營運狀況評估: { type: 'textarea', optional: true },
     備註: { type: 'text' }
   }
 };
@@ -1591,6 +1600,19 @@ function setupForms() {
   });
 }
 
+// ---------- 會員表單：選「會員等級」自動帶入建議年費（仍可手動調整） ----------
+const MEMBER_TIER_FEES = { '共學者': 6000, '共創者': 18000, '領航者': 360000 };
+
+function setupMemberTierAutofill() {
+  const tierSel = document.getElementById('member-tier-select');
+  const feeInput = document.getElementById('member-fee-input');
+  if (!tierSel || !feeInput) return;
+  tierSel.addEventListener('change', () => {
+    const fee = MEMBER_TIER_FEES[tierSel.value];
+    if (fee !== undefined) feeInput.value = fee;
+  });
+}
+
 // ---------- 初始化 ----------
 function init() {
   buildHomeGrid();
@@ -1602,6 +1624,7 @@ function init() {
   setupExpenseForm();
   setupSettlementForm();
   setupExpenseItemQuickForm();
+  setupMemberTierAutofill();
   syncProjectSelectName('settlement-project-select', 'settlement-project-name');
   syncProjectSelectName('expense-item-project-select', 'expense-item-project-name');
   resetTodoRows();

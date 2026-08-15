@@ -230,9 +230,9 @@ tr.clickable-row:hover td { background: var(--tint); }
   color: var(--primary-dark);
 }
 
-.tag.已完成, .tag.已核准, .tag.已出貨, .tag.充足 { background: #E6F4EA; color: var(--ok); }
+.tag.已完成, .tag.已核准, .tag.已出貨, .tag.充足, .tag.使用中 { background: #E6F4EA; color: var(--ok); }
 .tag.待審核, .tag.待處理, .tag.進行中 { background: #FFF4E0; color: var(--warn); }
-.tag.已退回, .tag.已取消, .tag.需補貨, .tag.曠職 { background: #FBE7E5; color: var(--danger); }
+.tag.已退回, .tag.已取消, .tag.需補貨, .tag.曠職, .tag.已到期, .tag.已退出 { background: #FBE7E5; color: var(--danger); }
 
 .hint {
   font-size: 0.78rem;
