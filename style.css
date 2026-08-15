@@ -332,9 +332,18 @@ button.secondary {
   grid-template-columns: 2fr 1.1fr 0.8fr 1fr auto;
 }
 
+.todo-row.topic-row {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+}
+.todo-row.topic-row textarea.topic-content {
+  min-height: 44px;
+}
+
 @media (max-width: 600px) {
   .todo-row,
-  .todo-row.project-item-row { grid-template-columns: 1fr; }
+  .todo-row.project-item-row,
+  .todo-row.topic-row { grid-template-columns: 1fr; }
 }
 
 /* ---- 歷史紀錄清單（可點開文件） ---- */
@@ -423,6 +432,19 @@ button.secondary {
 .doc-todo-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .doc-todo-table th, .doc-todo-table td { border-bottom: 1px solid var(--border); padding: 8px 6px; text-align: left; }
 .doc-todo-table th { color: var(--muted); font-weight: 600; }
+
+.topic-list { margin: 0; padding-left: 20px; }
+.topic-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+.topic-list li span { white-space: pre-wrap; }
+.topic-list li button { flex-shrink: 0; }
 
 /* ---- 編輯彈窗／支出明細彈窗（較窄的通用彈窗） ---- */
 .modal-doc-narrow { max-width: 460px; }

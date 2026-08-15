@@ -61,7 +61,8 @@ const VIEW_DATA_TYPE = {
 };
 
 const COLUMN_ORDER = {
-  meeting: ['會議日期', '會議主題', '主持人', '缺席人員', '本次會議內容', '追蹤上次進度', '備註'],
+  meeting: ['會議日期', '會議主題', '主持人', '缺席人員', '追蹤上次進度', '備註'],
+  meetingTopic: ['會議主題', '議題內容', '備註'],
   meetingTodo: ['會議主題', '待辦事項內容', '負責人', '預計完成日', '狀態', '備註'],
   project: ['專案名稱', '專案類型', '主要負責人', '介紹人', '說明', '開始日期', '預計完成日', '備註'],
   projectItem: ['專案名稱', '事項內容', '負責人', '進度(%)', '狀態', '備註'],
@@ -82,7 +83,7 @@ const DETAIL_LINK = {};
 
 // ---------- 通用「編輯」功能：每種資料類型的中文名稱＋可編輯欄位設定 ----------
 const TYPE_LABEL = {
-  meeting: '會議記錄', meetingTodo: '待辦事項', project: '專案', projectItem: '工作事項',
+  meeting: '會議記錄', meetingTopic: '會議議題', meetingTodo: '待辦事項', project: '專案', projectItem: '工作事項',
   projectSettlement: '分潤結算', projectExpenseItem: '支出項目', expense: '請款紀錄',
   attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料'
 };
@@ -95,9 +96,12 @@ const FIELD_META = {
     會議主題: { type: 'text' },
     主持人: { type: 'partner' },
     缺席人員: { type: 'text' },
-    本次會議內容: { type: 'textarea' },
     追蹤上次進度: { type: 'textarea' },
     備註: { type: 'text' }
+  },
+  meetingTopic: {
+    議題內容: { type: 'textarea' },
+    備註: { type: 'text', optional: true }
   },
   meetingTodo: {
     待辦事項內容: { type: 'text' },
@@ -368,6 +372,20 @@ function collectTodoRows() {
     const owner = row.querySelector('.todo-owner').value;
     const due = row.querySelector('.todo-due').value;
     if (content) rows.push({ 待辦事項內容: content, 負責人: owner, 預計完成日: due });
+  });
+  return rows;
+}
+
+function addTopicRow() { addDynamicRow('topic-row-template', 'topic-rows'); }
+function resetTopicRows() {
+  document.getElementById('topic-rows').innerHTML = '';
+  addTopicRow();
+}
+function collectTopicRows() {
+  const rows = [];
+  document.querySelectorAll('#topic-rows .topic-row').forEach(row => {
+    const content = row.querySelector('.topic-content').value.trim();
+    if (content) rows.push({ 議題內容: content });
   });
   return rows;
 }
@@ -1348,13 +1366,27 @@ function wireUnfinishedReasonButtons(container) {
 }
 
 // ---------- 上次會議記錄（追溯參考）：新增會議記錄頁面上方顯示最近一次會議的內容與未完成待辦事項 ----------
+// ---------- 共用：會議議題列表（條列顯示，數量不限；editable=true 時每筆可以點「編輯」修改） ----------
+function renderTopicList(topics, editable) {
+  if (topics.length === 0) {
+    return '<p class="hint">（沒有議題紀錄）</p>';
+  }
+  return '<ol class="topic-list">' + topics.map(t => `
+      <li>
+        <span>${escapeHtml(t['議題內容'] || '')}</span>
+        ${editable ? `<button type="button" class="secondary btn-edit-topic" data-topic-id="${escapeHtml(t['編號'])}">編輯</button>` : ''}
+      </li>
+    `).join('') + '</ol>';
+}
+
 async function loadLastMeetingReference() {
   const card = document.getElementById('last-meeting-ref-card');
   const content = document.getElementById('last-meeting-ref-content');
   if (!card || !content) return;
   try {
-    const [meetingRes, todoRes] = await Promise.all([
+    const [meetingRes, topicRes, todoRes] = await Promise.all([
       apiGet({ action: 'list', type: 'meeting' }),
+      apiGet({ action: 'list', type: 'meetingTopic' }),
       apiGet({ action: 'list', type: 'meetingTodo' })
     ]);
     if (!meetingRes.ok || meetingRes.data.length === 0) {
@@ -1364,6 +1396,7 @@ async function loadLastMeetingReference() {
     // 以會議日期找出最近一次的會議（日期相同時，用清單裡較後面的當作較新）
     const meetings = meetingRes.data.slice().sort((a, b) => String(a['會議日期'] || '').localeCompare(String(b['會議日期'] || '')));
     const last = meetings[meetings.length - 1];
+    const topics = (topicRes.ok ? topicRes.data : []).filter(t => String(t['會議編號']) === String(last['編號']));
     const todos = (todoRes.ok ? todoRes.data : []).filter(t => String(t['會議編號']) === String(last['編號']));
     const unfinished = todos.filter(t => t['狀態'] !== '已完成');
 
@@ -1375,7 +1408,10 @@ async function loadLastMeetingReference() {
         <span>會議主題：${escapeHtml(last['會議主題'] || '')}</span>
         <span>主持人：${escapeHtml(last['主持人'] || '')}</span>
       </div>
-      ${docBlock('上次會議內容', last['本次會議內容'])}
+      <div class="doc-block">
+        <h4>上次會議議題（共 ${topics.length} 筆）</h4>
+        ${renderTopicList(topics, false)}
+      </div>
       <div class="doc-block">
         <h4>上次未如期完成的待辦事項（共 ${unfinished.length} 筆，全部 ${todos.length} 筆）</h4>
         ${todoHtml}
@@ -1412,13 +1448,15 @@ async function openMeetingDetail(meetingId) {
   document.getElementById('detail-overlay').classList.add('active');
 
   try {
-    const [meetingRes, todoRes] = await Promise.all([
+    const [meetingRes, topicRes, todoRes] = await Promise.all([
       apiGet({ action: 'list', type: 'meeting' }),
+      apiGet({ action: 'list', type: 'meetingTopic' }),
       apiGet({ action: 'list', type: 'meetingTodo' })
     ]);
     if (!meetingRes.ok) { content.innerHTML = '讀取失敗：' + escapeHtml(meetingRes.error || ''); return; }
     const meeting = meetingRes.data.find(m => String(m['編號']) === String(meetingId));
     if (!meeting) { content.innerHTML = '<p class="hint">找不到這筆會議記錄。</p>'; return; }
+    const topics = (topicRes.ok ? topicRes.data : []).filter(t => String(t['會議編號']) === String(meetingId));
     const todos = (todoRes.ok ? todoRes.data : []).filter(t => String(t['會議編號']) === String(meetingId));
     const allTodos = todoRes.ok ? todoRes.data : [];
 
@@ -1464,7 +1502,10 @@ async function openMeetingDetail(meetingId) {
         </div>
         <button type="button" class="secondary" id="btn-edit-meeting">編輯會議記錄</button>
       </div>
-      ${docBlock('本次會議內容', meeting['本次會議內容'])}
+      <div class="doc-block">
+        <h4>本次會議議題（共 ${topics.length} 筆）</h4>
+        ${renderTopicList(topics, true)}
+      </div>
       ${docBlock('追蹤上次進度', meeting['追蹤上次進度'])}
       ${prevBlockHtml}
       <div class="doc-block">
@@ -1492,6 +1533,16 @@ async function openMeetingDetail(meetingId) {
             loadMeetingTrackList();
             loadLastMeetingReference();
             loadMeetingTodoListData();
+          });
+        }
+      });
+    });
+    content.querySelectorAll('.btn-edit-topic[data-topic-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tp = topics.find(x => String(x['編號']) === btn.dataset.topicId);
+        if (tp) {
+          openEditModal('meetingTopic', tp, () => {
+            openMeetingDetail(meetingId);
           });
         }
       });
@@ -1638,6 +1689,7 @@ function setupMeetingForm() {
   if (!form) return;
 
   document.getElementById('add-todo-row').addEventListener('click', addTodoRow);
+  document.getElementById('add-topic-row').addEventListener('click', addTopicRow);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1647,6 +1699,7 @@ function setupMeetingForm() {
     const data = {};
     new FormData(form).forEach((value, key) => { data[key] = value; });
     const todoRows = collectTodoRows();
+    const topicRows = collectTopicRows();
 
     btn.disabled = true;
     msg.textContent = '送出中…';
@@ -1661,6 +1714,14 @@ function setupMeetingForm() {
       }
       const meetingId = meetingRes.id;
 
+      for (const topic of topicRows) {
+        await apiPost('meetingTopic', {
+          會議編號: meetingId,
+          會議主題: data['會議主題'],
+          議題內容: topic.議題內容
+        });
+      }
+
       for (const todo of todoRows) {
         await apiPost('meetingTodo', {
           會議編號: meetingId,
@@ -1672,10 +1733,11 @@ function setupMeetingForm() {
         });
       }
 
-      msg.textContent = `✅ 已送出（會議編號：${meetingId}，待辦事項 ${todoRows.length} 筆）`;
+      msg.textContent = `✅ 已送出（會議編號：${meetingId}，議題 ${topicRows.length} 筆，待辦事項 ${todoRows.length} 筆）`;
       msg.className = 'status-msg ok';
       form.reset();
       resetTodoRows();
+      resetTopicRows();
       loadDocList('meeting');
       loadMeetingTrackList();
       loadLastMeetingReference();
@@ -1965,6 +2027,7 @@ function init() {
   syncProjectSelectName('settlement-project-select', 'settlement-project-name');
   syncProjectSelectName('expense-item-project-select', 'expense-item-project-name');
   resetTodoRows();
+  resetTopicRows();
   resetProjectItemRows();
 
   document.getElementById('detail-close').addEventListener('click', closeDetail);

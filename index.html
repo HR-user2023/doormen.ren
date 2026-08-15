@@ -60,9 +60,14 @@
         <label>缺席人員
           <input type="text" name="缺席人員" placeholder="例如：陳大文（請假）" />
         </label>
-        <label class="full">本次會議內容
-          <textarea name="本次會議內容" placeholder="這次會議討論了什麼？"></textarea>
-        </label>
+        <div class="full todo-section">
+          <div class="todo-section-head">
+            <span>本次會議議題（可新增多筆，每次會議數量不限）</span>
+            <button type="button" id="add-topic-row" class="secondary">＋ 新增議題</button>
+          </div>
+          <div id="topic-rows"></div>
+        </div>
+
         <label class="full">追蹤上次進度
           <textarea name="追蹤上次進度" placeholder="上次的待辦事項，這次進行得如何？"></textarea>
         </label>
@@ -97,6 +102,14 @@
       <input type="text" class="todo-content" placeholder="待辦事項內容" />
       <select class="todo-owner partner-select"></select>
       <input type="date" class="todo-due" />
+      <button type="button" class="todo-remove" title="刪除這筆">×</button>
+    </div>
+  </template>
+
+  <!-- 會議議題列樣板（JS 會 clone 這個，每次會議可以新增不限筆數） -->
+  <template id="topic-row-template">
+    <div class="todo-row topic-row">
+      <textarea class="topic-content" placeholder="這個議題討論了什麼？"></textarea>
       <button type="button" class="todo-remove" title="刪除這筆">×</button>
     </div>
   </template>
