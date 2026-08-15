@@ -62,7 +62,7 @@ const VIEW_DATA_TYPE = {
 
 const COLUMN_ORDER = {
   meeting: ['會議日期', '會議主題', '主持人', '缺席人員', '追蹤上次進度', '備註'],
-  meetingTopic: ['會議主題', '議題內容', '備註'],
+  meetingTopic: ['會議主題', '議題標題', '議題內容', '備註'],
   meetingTodo: ['會議主題', '待辦事項內容', '負責人', '預計完成日', '狀態', '備註'],
   project: ['專案名稱', '專案類型', '主要負責人', '介紹人', '說明', '開始日期', '預計完成日', '備註'],
   projectItem: ['專案名稱', '事項內容', '負責人', '進度(%)', '狀態', '備註'],
@@ -100,7 +100,8 @@ const FIELD_META = {
     備註: { type: 'text' }
   },
   meetingTopic: {
-    議題內容: { type: 'textarea' },
+    議題標題: { type: 'text' },
+    議題內容: { type: 'textarea', optional: true },
     備註: { type: 'text', optional: true }
   },
   meetingTodo: {
@@ -384,8 +385,9 @@ function resetTopicRows() {
 function collectTopicRows() {
   const rows = [];
   document.querySelectorAll('#topic-rows .topic-row').forEach(row => {
+    const title = row.querySelector('.topic-title').value.trim();
     const content = row.querySelector('.topic-content').value.trim();
-    if (content) rows.push({ 議題內容: content });
+    if (title) rows.push({ 議題標題: title, 議題內容: content });
   });
   return rows;
 }
@@ -1365,20 +1367,23 @@ function wireUnfinishedReasonButtons(container) {
   });
 }
 
-// ---------- 上次會議記錄（追溯參考）：新增會議記錄頁面上方顯示最近一次會議的內容與未完成待辦事項 ----------
-// ---------- 共用：會議議題列表（條列顯示，數量不限；editable=true 時每筆可以點「編輯」修改） ----------
+// ---------- 共用：會議議題列表（標題＋內容條列顯示，數量不限；editable=true 時每筆可以點「編輯」修改） ----------
 function renderTopicList(topics, editable) {
   if (topics.length === 0) {
     return '<p class="hint">（沒有議題紀錄）</p>';
   }
   return '<ol class="topic-list">' + topics.map(t => `
       <li>
-        <span>${escapeHtml(t['議題內容'] || '')}</span>
+        <div class="topic-body">
+          <div class="topic-title">${escapeHtml(t['議題標題'] || '')}</div>
+          ${t['議題內容'] ? `<div class="topic-content-text">${escapeHtml(t['議題內容'])}</div>` : ''}
+        </div>
         ${editable ? `<button type="button" class="secondary btn-edit-topic" data-topic-id="${escapeHtml(t['編號'])}">編輯</button>` : ''}
       </li>
     `).join('') + '</ol>';
 }
 
+// ---------- 上次會議記錄（追溯參考）：新增會議記錄頁面上方顯示最近一次會議的內容與未完成待辦事項 ----------
 async function loadLastMeetingReference() {
   const card = document.getElementById('last-meeting-ref-card');
   const content = document.getElementById('last-meeting-ref-content');
@@ -1718,6 +1723,7 @@ function setupMeetingForm() {
         await apiPost('meetingTopic', {
           會議編號: meetingId,
           會議主題: data['會議主題'],
+          議題標題: topic.議題標題,
           議題內容: topic.議題內容
         });
       }

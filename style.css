@@ -336,6 +336,11 @@ button.secondary {
   grid-template-columns: 1fr auto;
   align-items: start;
 }
+.topic-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .todo-row.topic-row textarea.topic-content {
   min-height: 44px;
 }
@@ -439,11 +444,12 @@ button.secondary {
   justify-content: space-between;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 8px;
-  font-size: 0.92rem;
+  margin-bottom: 12px;
   line-height: 1.6;
 }
-.topic-list li span { white-space: pre-wrap; }
+.topic-list .topic-body { flex: 1; }
+.topic-list .topic-title { font-size: 0.92rem; font-weight: 600; color: var(--text); }
+.topic-list .topic-content-text { font-size: 0.85rem; color: var(--muted); white-space: pre-wrap; margin-top: 2px; }
 .topic-list li button { flex-shrink: 0; }
 
 /* ---- 編輯彈窗／支出明細彈窗（較窄的通用彈窗） ---- */

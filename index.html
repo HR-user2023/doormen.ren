@@ -62,7 +62,7 @@
         </label>
         <div class="full todo-section">
           <div class="todo-section-head">
-            <span>本次會議議題（可新增多筆，每次會議數量不限）</span>
+            <span>本次會議議題（可新增多筆，每次會議數量不限，每筆填「議題標題」＋「議題內容」）</span>
             <button type="button" id="add-topic-row" class="secondary">＋ 新增議題</button>
           </div>
           <div id="topic-rows"></div>
@@ -106,10 +106,13 @@
     </div>
   </template>
 
-  <!-- 會議議題列樣板（JS 會 clone 這個，每次會議可以新增不限筆數） -->
+  <!-- 會議議題列樣板（JS 會 clone 這個，每次會議可以新增不限筆數；標題＋內容分開兩個欄位） -->
   <template id="topic-row-template">
     <div class="todo-row topic-row">
-      <textarea class="topic-content" placeholder="這個議題討論了什麼？"></textarea>
+      <div class="topic-fields">
+        <input type="text" class="topic-title" placeholder="議題標題" />
+        <textarea class="topic-content" placeholder="這個議題討論了什麼？（選填）"></textarea>
+      </div>
       <button type="button" class="todo-remove" title="刪除這筆">×</button>
     </div>
   </template>
