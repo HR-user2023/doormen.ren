@@ -14,11 +14,16 @@
 
 * { box-sizing: border-box; }
 
+/* 按鈕、標籤、表格儲存格維持緊湊的行高，不要被內文的行距拉高 */
+button, .tag { line-height: 1.2; }
+th, td { line-height: 1.4; }
+
 body {
   margin: 0;
   font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
+  line-height: 1.55;
 }
 
 header {
@@ -123,12 +128,13 @@ nav#sub-tabs button.active {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
+  padding: 20px;
+  margin-bottom: 22px;
 }
 
 .card h2 {
   margin-top: 0;
+  margin-bottom: 14px;
   font-size: 1.1rem;
   color: var(--primary-dark);
 }
@@ -136,7 +142,7 @@ nav#sub-tabs button.active {
 form.grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px 14px;
+  gap: 14px 18px;
 }
 
 form.grid .full { grid-column: 1 / -1; }
@@ -146,12 +152,14 @@ label {
   flex-direction: column;
   font-size: 0.82rem;
   color: var(--muted);
-  gap: 4px;
+  line-height: 1.4;
+  gap: 6px;
 }
 
 input, select, textarea {
   font-family: inherit;
   font-size: 0.95rem;
+  line-height: 1.5;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -165,7 +173,7 @@ textarea { resize: vertical; min-height: 60px; }
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 10px;
 }
 
 button.primary {
@@ -236,8 +244,14 @@ tr.clickable-row:hover td { background: var(--tint); }
 
 .hint {
   font-size: 0.78rem;
+  line-height: 1.6;
   color: var(--muted);
   margin-top: -4px;
+}
+
+/* 表單送出後緊接著的說明文字，跟按鈕之間需要多留一點空間，不要黏在一起 */
+form + .hint {
+  margin-top: 16px;
 }
 
 .subsection h3 {

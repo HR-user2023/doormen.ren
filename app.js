@@ -15,7 +15,8 @@ const CATEGORIES = [
     subs: [
       { key: 'project-create', label: '專案建立' },
       { key: 'project-track', label: '專案進度追蹤' },
-      { key: 'project-settlement', label: '分潤結算' }
+      { key: 'project-settlement', label: '分潤結算' },
+      { key: 'project-settlement-summary', label: '分潤總覽' }
     ]
   },
   {
@@ -283,6 +284,7 @@ function showView(viewKey) {
   if (viewKey === 'project-create') loadDocList('project');
   if (viewKey === 'project-track') loadProjectTrackList();
   if (viewKey === 'project-settlement') { populateSettlementProjectSelect(); populateExpenseItemProjectSelect(); }
+  if (viewKey === 'project-settlement-summary') loadSettlementSummaryData();
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -978,6 +980,96 @@ async function loadProjectTrackList() {
   }
 }
 
+// ---------- 分潤總覽：每月需要分潤的專案，依「主要負責人」分類，可查詢過去月份 ----------
+const settlementSummaryCache = { projects: [], settlements: [] };
+
+async function loadSettlementSummaryData() {
+  const container = document.getElementById('settlement-summary-container');
+  const monthSel = document.getElementById('settlement-summary-month');
+  if (!container || !monthSel) return;
+  container.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const [projectRes, settlementRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'project' }),
+      apiGet({ action: 'list', type: 'projectSettlement' })
+    ]);
+    settlementSummaryCache.projects = projectRes.ok ? projectRes.data : [];
+    settlementSummaryCache.settlements = settlementRes.ok ? settlementRes.data : [];
+
+    if (!monthSel.dataset.wired) {
+      monthSel.addEventListener('change', renderSettlementSummary);
+      monthSel.dataset.wired = '1';
+    }
+    populateSettlementSummaryMonths();
+    renderSettlementSummary();
+  } catch (err) {
+    container.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
+    console.error(err);
+  }
+}
+
+function populateSettlementSummaryMonths() {
+  const sel = document.getElementById('settlement-summary-month');
+  const months = Array.from(new Set(settlementSummaryCache.settlements.map(r => r['月份']).filter(Boolean)))
+    .sort().reverse();
+  const current = sel.value;
+  sel.innerHTML = '<option value="">全部月份</option>' + months.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+  if (months.indexOf(current) !== -1) sel.value = current;
+}
+
+function renderSettlementSummary() {
+  const container = document.getElementById('settlement-summary-container');
+  const monthSel = document.getElementById('settlement-summary-month');
+  if (!container || !monthSel) return;
+  const month = monthSel.value;
+
+  const ownerMap = {};
+  settlementSummaryCache.projects.forEach(p => { ownerMap[p['編號']] = p['主要負責人'] || '未指定負責人'; });
+
+  let rows = settlementSummaryCache.settlements;
+  if (month) rows = rows.filter(r => String(r['月份']) === month);
+
+  if (rows.length === 0) {
+    container.innerHTML = '<p class="hint">目前沒有符合的分潤結算紀錄。</p>';
+    return;
+  }
+
+  const groups = {};
+  rows.forEach(r => {
+    const owner = ownerMap[r['專案編號']] || '未指定負責人';
+    (groups[owner] = groups[owner] || []).push(r);
+  });
+  const owners = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+
+  container.innerHTML = owners.map(owner => {
+    const items = groups[owner].slice().sort((a, b) => String(b['月份'] || '').localeCompare(String(a['月份'] || '')));
+    const subtotal = items.reduce((sum, r) => sum + (Number(r['主要負責人分潤金額']) || 0), 0);
+    return `
+      <div class="subsection">
+        <h3>${escapeHtml(owner)}（${items.length} 筆，主要負責人分潤小計 NT$ ${subtotal.toLocaleString()}）</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>專案名稱</th><th>月份</th><th>收入</th><th>成本</th><th>專案金額</th><th>主要負責人分潤</th><th>介紹人分潤</th></tr>
+            </thead>
+            <tbody>
+              ${items.map(r => `<tr>
+                <td>${escapeHtml(r['專案名稱'] || '')}</td>
+                <td>${escapeHtml(r['月份'] || '')}</td>
+                <td>${escapeHtml(String(r['收入'] ?? ''))}</td>
+                <td>${escapeHtml(String(r['成本'] ?? ''))}</td>
+                <td>${escapeHtml(String(r['專案金額'] ?? ''))}</td>
+                <td>${escapeHtml(String(r['主要負責人分潤金額'] ?? ''))}</td>
+                <td>${escapeHtml(String(r['介紹人分潤金額'] ?? ''))}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // ---------- 會議追蹤：每次會議一張簡易卡片（以會議日期排序、待辦事項完成摘要），點進去才有完整內容 ----------
 async function loadMeetingTrackList() {
   const container = document.querySelector('#view-meeting-track [data-doclist="meeting-track"]');
@@ -1051,14 +1143,16 @@ async function loadLastMeetingReference() {
     const unfinished = todos.filter(t => t['狀態'] !== '已完成');
 
     let todoHtml;
-    if (todos.length === 0) {
-      todoHtml = '<p class="hint">上次會議沒有待辦事項</p>';
+    if (unfinished.length === 0) {
+      todoHtml = '<p class="hint">上次待辦事項都已如期完成，沒有需要追蹤的項目。</p>';
     } else {
-      todoHtml = '<table class="doc-todo-table"><thead><tr><th>待辦事項</th><th>負責人</th><th>狀態</th></tr></thead><tbody>' +
-        todos.map(t => `<tr>
+      todoHtml = '<table class="doc-todo-table"><thead><tr><th>待辦事項</th><th>負責人</th><th>狀態</th><th>未完成原因</th><th></th></tr></thead><tbody>' +
+        unfinished.map(t => `<tr>
             <td>${escapeHtml(t['待辦事項內容'] || '')}</td>
             <td>${escapeHtml(t['負責人'] || '')}</td>
             <td>${tagHtml(t['狀態'])}</td>
+            <td><input type="text" class="unfinished-reason-input" data-todo-id="${escapeHtml(t['編號'])}" value="${escapeHtml(t['備註'] || '')}" placeholder="寫下未完成的原因" /></td>
+            <td><button type="button" class="secondary btn-save-reason" data-todo-id="${escapeHtml(t['編號'])}">儲存</button></td>
           </tr>`).join('') + '</tbody></table>';
     }
 
@@ -1070,11 +1164,31 @@ async function loadLastMeetingReference() {
       </div>
       ${docBlock('上次會議內容', last['本次會議內容'])}
       <div class="doc-block">
-        <h4>上次待辦事項（共 ${todos.length} 筆，未完成 ${unfinished.length} 筆）</h4>
+        <h4>上次未如期完成的待辦事項（共 ${unfinished.length} 筆，全部 ${todos.length} 筆）</h4>
         ${todoHtml}
       </div>
     `;
     card.style.display = 'block';
+
+    content.querySelectorAll('.btn-save-reason').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const todoId = btn.dataset.todoId;
+        const input = content.querySelector(`.unfinished-reason-input[data-todo-id="${todoId}"]`);
+        const reason = input ? input.value : '';
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = '儲存中…';
+        try {
+          const res = await apiPostRaw({ action: 'update', type: 'meetingTodo', id: todoId, data: { 備註: reason } });
+          btn.textContent = res.ok ? '已儲存' : '失敗';
+        } catch (err) {
+          btn.textContent = '失敗';
+          console.error(err);
+        } finally {
+          setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 1500);
+        }
+      });
+    });
   } catch (err) {
     card.style.display = 'none';
     console.error(err);

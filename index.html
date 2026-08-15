@@ -238,7 +238,7 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">同一個專案、同一個月份重複填收入，會直接更新那個月的金額，不會產生重複紀錄。一次性專案通常只需要填一次；「大型專案」類型不會出現在上面的選單。</p>
+      <p class="hint">如果建立專案時已經填過收入，這裡通常不用再填，那個月份的分潤結算已經自動建立好了。這裡主要是用來：補登當時沒填的收入、新增其他月份的收入、或修改既有金額。同一個專案、同一個月份重複填會直接更新，不會產生重複紀錄；「大型專案」類型不會出現在上面的選單。</p>
     </div>
     <div class="card">
       <h2>登記支出</h2>
@@ -270,6 +270,18 @@
       <h2>分潤結算紀錄</h2>
       <p class="hint">點「支出明細」可以看到某個月完整的支出項目清單並編輯。</p>
       <div class="table-wrap" data-list="projectSettlement"></div>
+    </div>
+  </section>
+
+  <!-- ============ 分潤總覽（每月需要分潤的專案，依主要負責人分類，可查詢過去月份） ============ -->
+  <section id="view-project-settlement-summary" class="view content-view">
+    <div class="card">
+      <h2>每月分潤清單</h2>
+      <label style="max-width:260px;">查詢月份
+        <select id="settlement-summary-month"></select>
+      </label>
+      <p class="hint">依「主要負責人」分類列出當月需要分潤的專案，也可以選擇查詢過去的月份；預設顯示全部月份。</p>
+      <div id="settlement-summary-container"></div>
     </div>
   </section>
 
