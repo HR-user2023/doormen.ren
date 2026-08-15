@@ -238,20 +238,30 @@ tr.clickable-row:hover td { background: var(--tint); }
   color: var(--primary-dark);
 }
 
-.tag.已完成, .tag.已核准, .tag.已出貨, .tag.充足, .tag.使用中 { background: #E6F4EA; color: var(--ok); }
-.tag.待審核, .tag.待處理, .tag.進行中 { background: #FFF4E0; color: var(--warn); }
+.tag.已完成, .tag.已核准, .tag.已出貨, .tag.充足, .tag.使用中, .tag.已放行 { background: #E6F4EA; color: var(--ok); }
+.tag.待審核, .tag.待處理, .tag.進行中, .tag.未放行 { background: #FFF4E0; color: var(--warn); }
 .tag.已退回, .tag.已取消, .tag.需補貨, .tag.曠職, .tag.已到期, .tag.已退出 { background: #FBE7E5; color: var(--danger); }
 
-.hint {
+/* 說明文字預設跟前一個元素（按鈕、下拉選單、表單…）留一點距離，不要黏在一起；
+   只有緊接在標題／警示文字後面時才需要貼近（見下面的覆寫規則） */
+.hint, .hint-list {
   font-size: 0.78rem;
   line-height: 1.6;
   color: var(--muted);
-  margin-top: -4px;
+  margin-top: 14px;
 }
 
-/* 表單送出後緊接著的說明文字，跟按鈕之間需要多留一點空間，不要黏在一起 */
-form + .hint {
-  margin-top: 16px;
+.hint-list {
+  margin-bottom: 0;
+  padding-left: 18px;
+}
+.hint-list li { margin-bottom: 3px; }
+.hint-list li:last-child { margin-bottom: 0; }
+
+/* 緊接在標題或警示文字後面的說明文字，維持貼近標題，不套用上面的間距 */
+h2 + .hint, h3 + .hint, h4 + .hint, strong + .hint,
+h2 + .hint-list, h3 + .hint-list, h4 + .hint-list, strong + .hint-list {
+  margin-top: -4px;
 }
 
 .subsection h3 {

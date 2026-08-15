@@ -64,16 +64,16 @@ const COLUMN_ORDER = {
   meetingTodo: ['會議主題', '待辦事項內容', '負責人', '預計完成日', '狀態', '備註'],
   project: ['專案名稱', '專案類型', '主要負責人', '介紹人', '說明', '開始日期', '預計完成日', '備註'],
   projectItem: ['專案名稱', '事項內容', '負責人', '進度(%)', '狀態', '備註'],
-  projectSettlement: ['專案名稱', '月份', '收入', '成本', '專案金額', '主要負責人分潤金額', '介紹人分潤金額', '公司利潤金額', '備註'],
+  projectSettlement: ['專案名稱', '月份', '收入', '成本', '專案金額', '主要負責人分潤金額', '介紹人分潤金額', '公司利潤金額', '放行狀態', '備註'],
   expense: ['申請日期', '申請人', '項目名稱', '金額', '說明', '審核狀態', '審核人', '審核日期', '收據附件', '備註'],
   attendance: ['日期', '姓名', '類型', '原因', '時數/天數', '本月累計次數', '備註'],
   inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '是否需補貨', '備註'],
   order: ['訂購日期', '品項名稱', '數量', '單價', '金額', '訂購人', '客戶/對象', '狀態', '備註'],
-  member: ['會員名稱', '聯絡人', '電話', 'Email', '會員等級', '年費', '押金', '城市', '所屬區域',
+  member: ['會員名稱', '聯絡人', '電話', 'Email', '會員等級', '年費', '押金', '銀行', '帳號', '城市', '所屬區域',
            '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註']
 };
 
-const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態']);
+const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '放行狀態']);
 const LINK_COLUMNS = new Set(['收據附件']);
 
 // 明細列表用：點一列可以打開來源文件的詳細頁（目前所有明細列表都已改成卡片式，暫時沒有用到，保留機制供之後使用）
@@ -173,6 +173,8 @@ const FIELD_META = {
     會員等級: { type: 'select', options: ['共學者', '共創者', '領航者'] },
     年費: { type: 'number' },
     押金: { type: 'number' },
+    銀行: { type: 'text', optional: true },
+    帳號: { type: 'text', optional: true },
     城市: { type: 'text', optional: true },
     所屬區域: { type: 'text', optional: true },
     加入日期: { type: 'date' },
@@ -1050,10 +1052,12 @@ function renderSettlementSummary() {
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>專案名稱</th><th>月份</th><th>收入</th><th>成本</th><th>專案金額</th><th>主要負責人分潤</th><th>介紹人分潤</th></tr>
+              <tr><th>專案名稱</th><th>月份</th><th>收入</th><th>成本</th><th>專案金額</th><th>主要負責人分潤</th><th>介紹人分潤</th><th>放行狀態</th><th>操作</th></tr>
             </thead>
             <tbody>
-              ${items.map(r => `<tr>
+              ${items.map(r => {
+                const released = r['放行狀態'] === '已放行';
+                return `<tr>
                 <td>${escapeHtml(r['專案名稱'] || '')}</td>
                 <td>${escapeHtml(r['月份'] || '')}</td>
                 <td>${escapeHtml(String(r['收入'] ?? ''))}</td>
@@ -1061,13 +1065,42 @@ function renderSettlementSummary() {
                 <td>${escapeHtml(String(r['專案金額'] ?? ''))}</td>
                 <td>${escapeHtml(String(r['主要負責人分潤金額'] ?? ''))}</td>
                 <td>${escapeHtml(String(r['介紹人分潤金額'] ?? ''))}</td>
-              </tr>`).join('')}
+                <td>${tagHtml(r['放行狀態'] || '未放行')}</td>
+                <td class="row-actions">${released
+                  ? `<button type="button" class="secondary btn-release" data-settlement-id="${escapeHtml(r['編號'])}" data-decision="未放行">取消放行</button>`
+                  : `<button type="button" class="secondary btn-release" data-settlement-id="${escapeHtml(r['編號'])}" data-decision="已放行">放行</button>`}</td>
+              </tr>`;
+              }).join('')}
             </tbody>
           </table>
         </div>
       </div>
     `;
   }).join('');
+
+  container.querySelectorAll('.btn-release').forEach(btn => {
+    btn.addEventListener('click', () => decideSettlementRelease(btn.dataset.settlementId, btn.dataset.decision));
+  });
+}
+
+// ---------- 分潤總覽：財務標記分潤結算是否已放行（撥款） ----------
+async function decideSettlementRelease(id, decision) {
+  const releaser = document.getElementById('settlement-release-select').value;
+  if (decision === '已放行' && !releaser) {
+    alert('請先在上方選擇「放行人」再進行放行');
+    return;
+  }
+  try {
+    const res = await apiPostRaw({ action: 'releaseSettlement', id, data: { 放行狀態: decision, 放行人: releaser } });
+    if (res.ok) {
+      await loadSettlementSummaryData();
+    } else {
+      alert('操作失敗：' + res.error);
+    }
+  } catch (err) {
+    alert('操作失敗，請確認網路連線');
+    console.error(err);
+  }
 }
 
 // ---------- 會議追蹤：每次會議一張簡易卡片（以會議日期排序、待辦事項完成摘要），點進去才有完整內容 ----------
@@ -1489,13 +1522,19 @@ function updateProjectIncomeFieldsVisibility() {
     onetimeFields.style.display = 'grid';
     longtermFields.style.display = 'none';
     label.textContent = '收入登記（選填）';
-    hint.textContent = '填「收入」即可，送出專案後會自動建立一筆分潤結算；成本不用現在就知道，之後可以到「分潤結算」頁籤逐筆新增支出。';
+    hint.innerHTML = '<ul class="hint-list">' +
+      '<li>填「收入」即可，送出專案後會自動建立一筆分潤結算</li>' +
+      '<li>成本不用現在就知道，之後可以到「分潤結算」頁籤逐筆新增支出</li>' +
+      '</ul>';
   } else if (typeSel.value === '長期性專案') {
     section.style.display = 'block';
     onetimeFields.style.display = 'none';
     longtermFields.style.display = 'grid';
     label.textContent = '每月固定收入登記（選填）';
-    hint.textContent = '填「起始月份」與「每月固定金額」，送出專案後會自動建立 12 個月的分潤結算（金額固定相同）；之後如果金額有變動，可以到「分潤結算」頁籤個別編輯調整。';
+    hint.innerHTML = '<ul class="hint-list">' +
+      '<li>填「起始月份」與「每月固定金額」，送出專案後會自動建立 12 個月的分潤結算（金額固定相同）</li>' +
+      '<li>之後如果金額有變動，可以到「分潤結算」頁籤個別編輯調整</li>' +
+      '</ul>';
   } else {
     section.style.display = 'none';
   }

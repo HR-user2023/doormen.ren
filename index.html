@@ -165,7 +165,7 @@
               <input type="number" id="project-longterm-amount" min="0" step="1" />
             </label>
           </div>
-          <p class="hint" id="project-income-hint"></p>
+          <div class="hint" id="project-income-hint"></div>
         </div>
 
         <div class="full todo-section">
@@ -181,7 +181,10 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">有填「介紹人」的專案，之後在「分潤結算」頁籤記錄收入時，系統會自動多算一筆介紹人分潤。「大型專案」類型不會出現在分潤結算的專案選單裡。</p>
+      <ul class="hint-list">
+        <li>有填「介紹人」的專案，之後在「分潤結算」頁籤記錄收入時，系統會自動多算一筆介紹人分潤</li>
+        <li>「大型專案」類型不會出現在分潤結算的專案選單裡</li>
+      </ul>
     </div>
     <div class="card">
       <h2>歷史專案</h2>
@@ -238,7 +241,12 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">如果建立專案時已經填過收入，這裡通常不用再填，那個月份的分潤結算已經自動建立好了。這裡主要是用來：補登當時沒填的收入、新增其他月份的收入、或修改既有金額。同一個專案、同一個月份重複填會直接更新，不會產生重複紀錄；「大型專案」類型不會出現在上面的選單。</p>
+      <ul class="hint-list">
+        <li>如果建立專案時已經填過收入，這裡通常不用再填，那個月份的分潤結算已經自動建立好了</li>
+        <li>這裡主要用來：補登當時沒填的收入、新增其他月份的收入、或修改既有金額</li>
+        <li>同一個專案、同一個月份重複填會直接更新，不會產生重複紀錄</li>
+        <li>「大型專案」類型不會出現在上面的選單</li>
+      </ul>
     </div>
     <div class="card">
       <h2>登記支出</h2>
@@ -264,7 +272,11 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">不用先知道收入、也不用先建立分潤結算，直接選專案跟月份填支出即可，系統會自動對應（或自動建立）那個月的分潤結算，可以隨時逐筆補上，成本、專案金額、分潤金額都會自動即時重算。</p>
+      <ul class="hint-list">
+        <li>不用先知道收入、也不用先建立分潤結算</li>
+        <li>直接選專案跟月份填支出即可，系統會自動對應（或自動建立）那個月的分潤結算</li>
+        <li>可以隨時逐筆補上，成本、專案金額、分潤金額都會自動即時重算</li>
+      </ul>
     </div>
     <div class="card">
       <h2>分潤結算紀錄</h2>
@@ -277,10 +289,19 @@
   <section id="view-project-settlement-summary" class="view content-view">
     <div class="card">
       <h2>每月分潤清單</h2>
-      <label style="max-width:260px;">查詢月份
-        <select id="settlement-summary-month"></select>
-      </label>
-      <p class="hint">依「主要負責人」分類列出當月需要分潤的專案，也可以選擇查詢過去的月份；預設顯示全部月份。</p>
+      <div class="income-subgrid">
+        <label>查詢月份
+          <select id="settlement-summary-month"></select>
+        </label>
+        <label>放行人（要放行前，請先選自己的名字）
+          <select id="settlement-release-select" class="partner-select"></select>
+        </label>
+      </div>
+      <ul class="hint-list">
+        <li>依「主要負責人」分類列出需要分潤的專案，並算出每個人的分潤小計</li>
+        <li>可以選擇查詢過去的月份，預設顯示全部月份</li>
+        <li>財務確認撥款後，可以點「放行」標記這筆分潤已經處理完成；標記錯誤可以點「取消放行」改回來</li>
+      </ul>
       <div id="settlement-summary-container"></div>
     </div>
   </section>
@@ -395,7 +416,10 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">送出後審核狀態為「待審核」，管理者可在「請款紀錄」頁籤核准／退回，或直接在 Google Sheet 上處理。照片檔案建議 5MB 以內。</p>
+      <ul class="hint-list">
+        <li>送出後審核狀態為「待審核」，管理者可在「請款紀錄」頁籤核准／退回，或直接在 Google Sheet 上處理</li>
+        <li>照片檔案建議 5MB 以內</li>
+      </ul>
     </div>
   </section>
 
@@ -484,6 +508,12 @@
         </label>
         <label>押金
           <input type="number" name="押金" id="member-deposit-input" min="0" step="1" value="3000" />
+        </label>
+        <label>銀行（方便對帳）
+          <input type="text" name="銀行" placeholder="例如：台灣銀行" />
+        </label>
+        <label>帳號
+          <input type="text" name="帳號" />
         </label>
         <label>會員狀態
           <select name="會員狀態">
