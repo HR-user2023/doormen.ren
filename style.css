@@ -192,6 +192,8 @@ button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .status-msg.ok { color: var(--ok); }
 .status-msg.error { color: var(--danger); }
 
+.overdue-note { color: var(--danger); font-weight: 600; font-size: 0.8rem; }
+
 table {
   width: 100%;
   border-collapse: collapse;

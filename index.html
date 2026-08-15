@@ -110,6 +110,28 @@
     </div>
   </section>
 
+  <!-- ============ 待辦事項清單（所有會議裡還沒完成的待辦事項，依負責人分類，可直接標記完成） ============ -->
+  <section id="view-meeting-todo-list" class="view content-view">
+    <div class="card">
+      <h2>待辦事項清單</h2>
+      <label>篩選狀態
+        <select id="todo-status-filter">
+          <option value="">全部</option>
+          <option value="未開始">未開始</option>
+          <option value="進行中">進行中</option>
+          <option value="已完成">已完成</option>
+        </select>
+      </label>
+      <ul class="hint-list">
+        <li>依「負責人」分類列出所有會議的待辦事項，每一筆都會標明是哪一場會議（日期＋主題）建立的，方便年底追蹤</li>
+        <li>可以用上面的篩選只看「未開始」「進行中」或「已完成」；預設顯示全部，還沒完成的排前面、已完成的排後面，逾期的項目會特別標示</li>
+        <li>完成之後點「標記完成」，系統會自動記錄完成日期；項目不會消失，會留在清單裡當作紀錄。點錯了可以點「取消完成」改回來</li>
+        <li>這裡的操作只會更新待辦事項自己的狀態，不會更動會議記錄本身的內容——會議記錄是年末績效考核用的歷史紀錄，會完整保留</li>
+      </ul>
+      <div id="meeting-todo-list-container"></div>
+    </div>
+  </section>
+
   <!-- ============ 專案建立（新增） ============ -->
   <section id="view-project-create" class="view content-view">
     <div class="card">

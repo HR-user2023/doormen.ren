@@ -7,7 +7,8 @@ const CATEGORIES = [
     key: 'meeting', title: '會議', desc: '會議記錄、追蹤待辦',
     subs: [
       { key: 'meeting-record', label: '會議記錄' },
-      { key: 'meeting-track', label: '會議追蹤' }
+      { key: 'meeting-track', label: '會議追蹤' },
+      { key: 'meeting-todo-list', label: '待辦事項清單' }
     ]
   },
   {
@@ -103,6 +104,7 @@ const FIELD_META = {
     負責人: { type: 'partner' },
     預計完成日: { type: 'date' },
     狀態: { type: 'select', options: ['未開始', '進行中', '已完成'] },
+    完成日期: { type: 'date', optional: true },
     備註: { type: 'text' }
   },
   project: {
@@ -284,6 +286,7 @@ function showView(viewKey) {
 
   if (viewKey === 'meeting-record') { loadDocList('meeting'); loadLastMeetingReference(); }
   if (viewKey === 'meeting-track') loadMeetingTrackList();
+  if (viewKey === 'meeting-todo-list') loadMeetingTodoListData();
   if (viewKey === 'project-create') loadDocList('project');
   if (viewKey === 'project-track') loadProjectTrackList();
   if (viewKey === 'project-settlement') { populateSettlementProjectSelect(); populateExpenseItemProjectSelect(); }
@@ -1164,6 +1167,148 @@ async function loadMeetingTrackList() {
   }
 }
 
+// ---------- 待辦事項清單：所有會議的待辦事項，依「負責人」分類，可直接標記完成／取消完成 ----------
+// 標記完成只會更新這筆待辦事項自己的「狀態」與「完成日期」，不會動到會議記錄本身的內容（會議記錄是年末績效考核用的歷史紀錄，維持原樣）。
+// 項目不會因為完成而消失，會留在清單裡並顯示完成日期，方便留存紀錄；還沒完成的排在前面，已完成的排在後面。
+function todayStr() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const meetingTodoListCache = { meetings: [], todos: [] };
+
+async function loadMeetingTodoListData() {
+  const container = document.getElementById('meeting-todo-list-container');
+  const filterSel = document.getElementById('todo-status-filter');
+  if (!container) return;
+  container.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const [meetingRes, todoRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'meeting' }),
+      apiGet({ action: 'list', type: 'meetingTodo' })
+    ]);
+    if (!todoRes.ok) {
+      container.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(todoRes.error || '')}</p>`;
+      return;
+    }
+    meetingTodoListCache.meetings = meetingRes.ok ? meetingRes.data : [];
+    meetingTodoListCache.todos = todoRes.data;
+
+    if (filterSel && !filterSel.dataset.wired) {
+      filterSel.addEventListener('change', renderMeetingTodoList);
+      filterSel.dataset.wired = '1';
+    }
+    renderMeetingTodoList();
+  } catch (err) {
+    container.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
+    console.error(err);
+  }
+}
+
+function renderMeetingTodoList() {
+  const container = document.getElementById('meeting-todo-list-container');
+  const filterSel = document.getElementById('todo-status-filter');
+  if (!container) return;
+  const filter = filterSel ? filterSel.value : '';
+
+  const meetingMap = {};
+  meetingTodoListCache.meetings.forEach(m => { meetingMap[m['編號']] = m; });
+
+  if (meetingTodoListCache.todos.length === 0) {
+    container.innerHTML = '<p class="hint">目前還沒有任何待辦事項。</p>';
+    return;
+  }
+
+  const visibleTodos = filter ? meetingTodoListCache.todos.filter(t => (t['狀態'] || '未開始') === filter) : meetingTodoListCache.todos;
+  if (visibleTodos.length === 0) {
+    container.innerHTML = '<p class="hint">沒有符合篩選條件的待辦事項。</p>';
+    return;
+  }
+
+  const groups = {};
+  visibleTodos.forEach(t => {
+    const owner = t['負責人'] || '未指定負責人';
+    (groups[owner] = groups[owner] || []).push(t);
+  });
+  const owners = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  const today = todayStr();
+
+  container.innerHTML = owners.map(owner => {
+    const openCount = groups[owner].filter(t => t['狀態'] !== '已完成').length;
+    const countLabel = filter ? `共 ${groups[owner].length} 筆` : `共 ${groups[owner].length} 筆，還在進行中 ${openCount} 筆`;
+    // 還沒完成的排前面（依預計完成日，快到期的優先）；已完成的排後面（依完成日期，最近完成的優先）
+    const items = groups[owner].slice().sort((a, b) => {
+      const aDone = a['狀態'] === '已完成';
+      const bDone = b['狀態'] === '已完成';
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      if (!aDone) {
+        const da = a['預計完成日'] || '9999-99-99';
+        const db = b['預計完成日'] || '9999-99-99';
+        return da.localeCompare(db);
+      }
+      const da2 = a['完成日期'] || '';
+      const db2 = b['完成日期'] || '';
+      return db2.localeCompare(da2);
+    });
+    return `
+      <div class="subsection">
+        <h3>${escapeHtml(owner)}（${countLabel}）</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>建立日期（會議日期）</th><th>會議主題</th><th>待辦事項</th><th>預計完成日</th><th>狀態</th><th>完成日期</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              ${items.map(t => {
+                const meeting = meetingMap[t['會議編號']] || {};
+                const due = t['預計完成日'] || '';
+                const done = t['狀態'] === '已完成';
+                const overdue = !done && due && due < today;
+                const actionHtml = done
+                  ? `<button type="button" class="secondary btn-complete-todo" data-todo-id="${escapeHtml(t['編號'])}" data-decision="進行中">取消完成</button>`
+                  : `<button type="button" class="secondary btn-complete-todo" data-todo-id="${escapeHtml(t['編號'])}" data-decision="已完成">標記完成</button>`;
+                return `<tr>
+                  <td>${escapeHtml(meeting['會議日期'] || '')}</td>
+                  <td>${escapeHtml(meeting['會議主題'] || '')}</td>
+                  <td>${escapeHtml(t['待辦事項內容'] || '')}</td>
+                  <td>${escapeHtml(due)}${overdue ? ' <span class="overdue-note">已逾期</span>' : ''}</td>
+                  <td>${tagHtml(t['狀態'])}</td>
+                  <td>${escapeHtml(t['完成日期'] || '-')}</td>
+                  <td class="row-actions">${actionHtml}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.btn-complete-todo').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const decision = btn.dataset.decision;
+      btn.disabled = true;
+      btn.textContent = '儲存中…';
+      try {
+        const res = await apiPostRaw({ action: 'completeTodo', id: btn.dataset.todoId, data: { 狀態: decision } });
+        if (res.ok) {
+          loadMeetingTodoListData();
+        } else {
+          alert('操作失敗：' + res.error);
+          btn.disabled = false;
+          btn.textContent = decision === '已完成' ? '標記完成' : '取消完成';
+        }
+      } catch (err) {
+        alert('操作失敗，請確認網路連線');
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = decision === '已完成' ? '標記完成' : '取消完成';
+      }
+    });
+  });
+}
+
 // ---------- 共用：未完成待辦事項表格（含「未完成原因」欄位，可直接編輯儲存）----------
 // 「未完成原因」存在該筆待辦事項自己的「備註」欄位裡（會議待辦事項分頁），不管在哪裡編輯，存的都是同一筆資料。
 function renderUnfinishedTodoTable(todos) {
@@ -1335,6 +1480,7 @@ async function openMeetingDetail(meetingId) {
         loadDocList('meeting');
         loadMeetingTrackList();
         loadLastMeetingReference();
+        loadMeetingTodoListData();
       });
     });
     content.querySelectorAll('.btn-edit[data-todo-id]').forEach(btn => {
@@ -1345,6 +1491,7 @@ async function openMeetingDetail(meetingId) {
             openMeetingDetail(meetingId);
             loadMeetingTrackList();
             loadLastMeetingReference();
+            loadMeetingTodoListData();
           });
         }
       });
@@ -1532,6 +1679,7 @@ function setupMeetingForm() {
       loadDocList('meeting');
       loadMeetingTrackList();
       loadLastMeetingReference();
+      loadMeetingTodoListData();
     } catch (err) {
       msg.textContent = '❌ 送出失敗，請確認設定或網路連線';
       msg.className = 'status-msg error';
