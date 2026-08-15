@@ -4,14 +4,14 @@
 // ---------- 入口分類定義：這裡決定首頁卡片跟每個分類底下的子頁籤 ----------
 const CATEGORIES = [
   {
-    key: 'meeting', icon: '📝', title: '會議', desc: '會議記錄、追蹤待辦',
+    key: 'meeting', title: '會議', desc: '會議記錄、追蹤待辦',
     subs: [
       { key: 'meeting-record', label: '會議記錄' },
       { key: 'meeting-track', label: '會議追蹤' }
     ]
   },
   {
-    key: 'project', icon: '📊', title: '專案', desc: '建立事項、進度追蹤',
+    key: 'project', title: '專案', desc: '建立事項、進度追蹤',
     subs: [
       { key: 'project-create', label: '專案建立' },
       { key: 'project-track', label: '專案進度追蹤' },
@@ -19,24 +19,31 @@ const CATEGORIES = [
     ]
   },
   {
-    key: 'product', icon: '📦', title: '商品', desc: '商品建立、訂單紀錄',
+    key: 'product', title: '商品', desc: '商品建立、訂單紀錄',
     subs: [
       { key: 'product-create', label: '商品建立' },
       { key: 'product-orders', label: '訂單紀錄' }
     ]
   },
   {
-    key: 'expense', icon: '💰', title: '請款', desc: '申請請款、查詢紀錄',
+    key: 'expense', title: '請款', desc: '申請請款、查詢紀錄',
     subs: [
       { key: 'expense-apply', label: '請款申請' },
       { key: 'expense-track', label: '請款紀錄' }
     ]
   },
   {
-    key: 'attendance', icon: '🕒', title: '差勤', desc: '遲到請假登記與紀錄',
+    key: 'attendance', title: '差勤', desc: '遲到請假登記與紀錄',
     subs: [
       { key: 'attendance-log', label: '差勤登記' },
       { key: 'attendance-track', label: '差勤紀錄' }
+    ]
+  },
+  {
+    key: 'member', title: '會員', desc: '會員資料建立與查詢',
+    subs: [
+      { key: 'member-create', label: '會員建立' },
+      { key: 'member-list', label: '會員名單' }
     ]
   }
 ];
@@ -47,7 +54,8 @@ const VIEW_DATA_TYPE = {
   'product-create': 'inventory',
   'product-orders': 'order',
   'expense-track': 'expense',
-  'attendance-track': 'attendance'
+  'attendance-track': 'attendance',
+  'member-list': 'member'
 };
 
 const COLUMN_ORDER = {
@@ -59,7 +67,8 @@ const COLUMN_ORDER = {
   expense: ['申請日期', '申請人', '項目名稱', '金額', '說明', '審核狀態', '審核人', '審核日期', '收據附件', '備註'],
   attendance: ['日期', '姓名', '類型', '原因', '時數/天數', '本月累計次數', '備註'],
   inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '是否需補貨', '備註'],
-  order: ['訂購日期', '品項名稱', '數量', '單價', '金額', '訂購人', '客戶/對象', '狀態', '備註']
+  order: ['訂購日期', '品項名稱', '數量', '單價', '金額', '訂購人', '客戶/對象', '狀態', '備註'],
+  member: ['姓名', '電話', 'Email', '會員等級/方案', '加入日期', '介紹人', '地址', '生日', '備註']
 };
 
 const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型']);
@@ -72,7 +81,7 @@ const DETAIL_LINK = {};
 const TYPE_LABEL = {
   meeting: '會議記錄', meetingTodo: '待辦事項', project: '專案', projectItem: '工作事項',
   projectSettlement: '分潤結算', projectExpenseItem: '支出項目', expense: '請款紀錄',
-  attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單'
+  attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料'
 };
 
 // type: text / textarea / number / date / month / select / partner
@@ -153,6 +162,17 @@ const FIELD_META = {
     '客戶/對象': { type: 'text' },
     狀態: { type: 'select', options: ['待處理', '已出貨', '已取消'] },
     備註: { type: 'text' }
+  },
+  member: {
+    姓名: { type: 'text' },
+    電話: { type: 'text' },
+    Email: { type: 'text' },
+    '會員等級/方案': { type: 'text' },
+    加入日期: { type: 'date' },
+    介紹人: { type: 'text', optional: true },
+    地址: { type: 'text' },
+    生日: { type: 'date' },
+    備註: { type: 'text' }
   }
 };
 
@@ -203,7 +223,6 @@ function buildHomeGrid() {
   const grid = document.getElementById('home-grid');
   grid.innerHTML = CATEGORIES.map(cat => `
     <div class="home-card" data-cat="${cat.key}">
-      <span class="icon">${cat.icon}</span>
       <div class="title">${escapeHtml(cat.title)}</div>
       <div class="desc">${escapeHtml(cat.desc)}</div>
     </div>
@@ -227,7 +246,7 @@ function openCategory(catKey) {
 
   document.getElementById('view-home').classList.remove('active');
   document.getElementById('category-header').classList.add('active');
-  document.getElementById('page-title').textContent = cat.icon + ' ' + cat.title;
+  document.getElementById('page-title').textContent = cat.title;
   document.getElementById('page-subtitle').textContent = cat.desc;
 
   showView(cat.subs[0].key);
@@ -900,7 +919,7 @@ async function loadProjectTrackList() {
       return;
     }
 
-    container.innerHTML = projects.map(p => {
+    function renderCard(p) {
       const pid = p['編號'];
       const pItems = items.filter(i => String(i['專案編號']) === String(pid));
       const total = pItems.length;
@@ -922,7 +941,24 @@ async function loadProjectTrackList() {
           <div class="doc-arrow">›</div>
         </div>
       `;
-    }).join('');
+    }
+
+    // 依「專案類型」分類顯示，比較好找（沒有類型的舊資料歸在「未分類」）
+    const TYPE_ORDER = ['一次性專案', '長期性專案', '大型專案', '未分類'];
+    const groups = {};
+    projects.forEach(p => {
+      const t = p['專案類型'] && TYPE_ORDER.indexOf(p['專案類型']) !== -1 ? p['專案類型'] : '未分類';
+      (groups[t] = groups[t] || []).push(p);
+    });
+
+    container.innerHTML = TYPE_ORDER
+      .filter(t => groups[t] && groups[t].length > 0)
+      .map(t => `
+        <div class="subsection">
+          <h3>${escapeHtml(t)}（${groups[t].length}）</h3>
+          <div class="doc-list">${groups[t].map(renderCard).join('')}</div>
+        </div>
+      `).join('');
 
     container.querySelectorAll('.doc-item').forEach(el => {
       el.addEventListener('click', () => openDetail('project', el.dataset.id));
@@ -1019,9 +1055,9 @@ async function loadLastMeetingReference() {
 
     content.innerHTML = `
       <div class="doc-header-meta" style="margin-bottom:10px;">
-        <span>📅 ${escapeHtml(last['會議日期'] || '')}</span>
-        <span>📝 ${escapeHtml(last['會議主題'] || '')}</span>
-        <span>🙋 主持人：${escapeHtml(last['主持人'] || '')}</span>
+        <span>會議日期：${escapeHtml(last['會議日期'] || '')}</span>
+        <span>會議主題：${escapeHtml(last['會議主題'] || '')}</span>
+        <span>主持人：${escapeHtml(last['主持人'] || '')}</span>
       </div>
       ${docBlock('上次會議內容', last['本次會議內容'])}
       <div class="doc-block">
@@ -1086,9 +1122,9 @@ async function openMeetingDetail(meetingId) {
         <div>
           <h2>${escapeHtml(meeting['會議主題'] || '（未命名會議）')}</h2>
           <div class="doc-header-meta">
-            <span>📅 ${escapeHtml(meeting['會議日期'] || '')}</span>
-            <span>🙋 主持人：${escapeHtml(meeting['主持人'] || '')}</span>
-            <span>🙅 缺席：${escapeHtml(meeting['缺席人員'] || '無')}</span>
+            <span>會議日期：${escapeHtml(meeting['會議日期'] || '')}</span>
+            <span>主持人：${escapeHtml(meeting['主持人'] || '')}</span>
+            <span>缺席：${escapeHtml(meeting['缺席人員'] || '無')}</span>
           </div>
         </div>
         <button type="button" class="secondary" id="btn-edit-meeting">編輯會議記錄</button>
@@ -1192,11 +1228,11 @@ async function openProjectDetail(projectId) {
         <div>
           <h2>${escapeHtml(project['專案名稱'] || '（未命名專案）')}</h2>
           <div class="doc-header-meta">
-            <span>${project['專案類型'] ? '🏷️ ' + escapeHtml(project['專案類型']) : ''}</span>
-            <span>🙋 主要負責人：${escapeHtml(project['主要負責人'] || '-')}</span>
-            <span>🔗 介紹人：${escapeHtml(project['介紹人'] || '無')}</span>
-            <span>📅 開始：${escapeHtml(project['開始日期'] || '-')}</span>
-            <span>🏁 預計完成：${escapeHtml(project['預計完成日'] || '-')}</span>
+            <span>${project['專案類型'] ? escapeHtml(project['專案類型']) : ''}</span>
+            <span>主要負責人：${escapeHtml(project['主要負責人'] || '-')}</span>
+            <span>介紹人：${escapeHtml(project['介紹人'] || '無')}</span>
+            <span>開始：${escapeHtml(project['開始日期'] || '-')}</span>
+            <span>預計完成：${escapeHtml(project['預計完成日'] || '-')}</span>
           </div>
         </div>
         <button type="button" class="secondary" id="btn-edit-project">編輯專案</button>

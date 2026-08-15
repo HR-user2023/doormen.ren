@@ -64,7 +64,6 @@ main {
   border-color: var(--primary);
 }
 
-.home-card .icon { font-size: 2rem; display: block; margin-bottom: 8px; }
 .home-card .title { font-weight: 700; color: var(--primary-dark); font-size: 1.05rem; }
 .home-card .desc { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 

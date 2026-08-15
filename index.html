@@ -442,6 +442,54 @@
     </div>
   </section>
 
+  <!-- ============ 會員建立（新增） ============ -->
+  <section id="view-member-create" class="view content-view">
+    <div class="card">
+      <h2>新增會員</h2>
+      <form class="grid" data-type="member">
+        <label>姓名
+          <input type="text" name="姓名" required />
+        </label>
+        <label>電話
+          <input type="text" name="電話" />
+        </label>
+        <label>Email
+          <input type="email" name="Email" />
+        </label>
+        <label>會員等級/方案
+          <input type="text" name="會員等級/方案" placeholder="例如：一般會員、VIP會員" />
+        </label>
+        <label>加入日期
+          <input type="date" name="加入日期" />
+        </label>
+        <label>介紹人
+          <input type="text" name="介紹人" />
+        </label>
+        <label>地址
+          <input type="text" name="地址" />
+        </label>
+        <label>生日
+          <input type="date" name="生日" />
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">新增會員</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ 會員名單（列表） ============ -->
+  <section id="view-member-list" class="view content-view">
+    <div class="card">
+      <h2>會員名單</h2>
+      <div class="table-wrap" data-list="member"></div>
+    </div>
+  </section>
+
 </main>
 
 <footer>門人夥伴管理系統 · 資料儲存於 Google Sheet</footer>
