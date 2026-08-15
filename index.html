@@ -21,6 +21,12 @@
     <p class="hint">請先依照「設定教學.md」，把 Google Apps Script 的網頁應用程式網址貼到 config.js 裡。</p>
   </div>
 
+  <!-- 夥伴名單讀取失敗／是空的時的提醒（所有姓名下拉選單都會受影響） -->
+  <div id="partner-warning" class="card" style="display:none; border-color:#C77700;">
+    <strong style="color:#C77700;">⚠️ 姓名下拉選單目前無法使用</strong>
+    <p class="hint" id="partner-warning-text"></p>
+  </div>
+
   <!-- ============ 首頁：入口卡片 ============ -->
   <section id="view-home" class="view active">
     <div id="home-grid" class="home-grid"></div>
@@ -108,6 +114,20 @@
         <label>專案名稱
           <input type="text" name="專案名稱" required />
         </label>
+        <label>專案類型
+          <select name="專案類型" required>
+            <option value="">請選擇類型</option>
+            <option value="一次性專案">一次性專案（單次服務）</option>
+            <option value="長期性專案">長期性專案（每月收費）</option>
+            <option value="大型專案">大型專案（不分潤，僅追蹤進度）</option>
+          </select>
+        </label>
+        <label>主要負責人
+          <select name="主要負責人" class="partner-select" required></select>
+        </label>
+        <label>介紹人（選填）
+          <select name="介紹人" class="partner-select"></select>
+        </label>
         <label>開始日期
           <input type="date" name="開始日期" />
         </label>
@@ -134,10 +154,11 @@
           <span class="status-msg"></span>
         </div>
       </form>
+      <p class="hint">有填「介紹人」的專案，之後在「月結分潤」頁籤記錄收入時，系統會自動多算一筆介紹人分潤。「大型專案」類型不會出現在月結分潤的專案選單裡。</p>
     </div>
     <div class="card">
       <h2>歷史專案</h2>
-      <p class="hint">點一筆專案可以打開所有工作事項、負責人與進度。</p>
+      <p class="hint">點一筆專案可以打開所有工作事項、負責人、進度與分潤結算紀錄，也可以在裡面直接編輯修改。</p>
       <div class="doc-list" data-doclist="project"></div>
     </div>
   </section>
@@ -158,13 +179,43 @@
     </div>
   </template>
 
-  <!-- ============ 專案進度追蹤（以工作事項為單位） ============ -->
+  <!-- ============ 專案進度追蹤（每個專案一張簡易卡片，點進去才有完整工作事項與分潤結算） ============ -->
   <section id="view-project-track" class="view content-view">
     <div class="card">
       <h2>專案進度追蹤</h2>
-      <p class="hint">這裡列出所有專案的工作事項，可以看到每一筆各自的負責人與進度；點一列可以打開來源專案的完整內容。</p>
-      <label class="filter-toggle"><input type="checkbox" data-filter="projectItem" checked /> 只顯示未完成的事項</label>
-      <div class="table-wrap" data-list="projectItem"></div>
+      <p class="hint">每個專案先顯示簡易進度，點一筆可以打開完整的工作事項清單、負責人與分潤結算紀錄。</p>
+      <div class="doc-list" data-doclist="project-track"></div>
+    </div>
+  </section>
+
+  <!-- ============ 專案月結分潤（新增＋列表） ============ -->
+  <section id="view-project-settlement" class="view content-view">
+    <div class="card">
+      <h2>新增分潤結算</h2>
+      <form class="grid" id="settlement-form" data-type="projectSettlement">
+        <label>專案
+          <select id="settlement-project-select" name="專案編號" required></select>
+          <input type="hidden" name="專案名稱" id="settlement-project-name" />
+        </label>
+        <label>月份
+          <input type="month" name="月份" required />
+        </label>
+        <label>收入
+          <input type="number" name="收入" min="0" step="1" required />
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出分潤結算</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <p class="hint">先填「收入」送出即可，成本不用馬上知道 —— 送出後在下面列表點「支出明細」，之後可以隨時逐筆新增支出項目，成本、專案金額、分潤金額都會自動即時重算。一次性專案通常只需要送出一筆；「大型專案」類型的專案不會出現在上面的選單。</p>
+    </div>
+    <div class="card">
+      <h2>分潤結算紀錄</h2>
+      <div class="table-wrap" data-list="projectSettlement"></div>
     </div>
   </section>
 
@@ -346,6 +397,39 @@
   <div class="modal-doc">
     <button id="detail-close" class="modal-close" title="關閉">×</button>
     <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- ============ 編輯彈窗（通用，所有資料類型共用） ============ -->
+<div id="edit-overlay" class="modal-overlay">
+  <div class="modal-doc modal-doc-narrow">
+    <button id="edit-close" class="modal-close" title="關閉">×</button>
+    <h3 id="edit-title">編輯</h3>
+    <form class="grid" id="edit-form"></form>
+  </div>
+</div>
+
+<!-- ============ 支出明細彈窗（某一筆分潤結算底下的支出項目，可逐筆新增／編輯） ============ -->
+<div id="costitem-overlay" class="modal-overlay">
+  <div class="modal-doc modal-doc-narrow">
+    <button id="costitem-close" class="modal-close" title="關閉">×</button>
+    <h3 id="costitem-title">支出明細</h3>
+    <form class="grid" id="costitem-add-form">
+      <label class="full">項目說明
+        <input type="text" name="項目說明" required />
+      </label>
+      <label>金額
+        <input type="number" name="金額" min="0" step="1" required />
+      </label>
+      <label>備註
+        <input type="text" name="備註" />
+      </label>
+      <div class="submit-row">
+        <button type="submit" class="primary">＋ 新增支出項目</button>
+        <span class="status-msg"></span>
+      </div>
+    </form>
+    <div id="costitem-list"></div>
   </div>
 </div>
 

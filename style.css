@@ -318,10 +318,24 @@ button.secondary {
 
 .doc-item:hover { border-color: var(--primary); background: #EEF1F8; }
 
-.doc-item .doc-main { font-size: 0.92rem; }
+.doc-item .doc-main { font-size: 0.92rem; flex: 1; }
 .doc-item .doc-main .doc-title { font-weight: 600; color: var(--text); }
+.doc-item .doc-main .doc-title .tag { margin-left: 6px; font-weight: 500; }
 .doc-item .doc-main .doc-meta { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
 .doc-item .doc-arrow { color: var(--muted); }
+
+.progress-bar {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: #EEF1F8;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+}
 
 /* ---- 詳細頁彈窗（文件式） ---- */
 .modal-overlay {
@@ -373,6 +387,25 @@ button.secondary {
 .doc-todo-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .doc-todo-table th, .doc-todo-table td { border-bottom: 1px solid var(--border); padding: 8px 6px; text-align: left; }
 .doc-todo-table th { color: var(--muted); font-weight: 600; }
+
+/* ---- 編輯彈窗／支出明細彈窗（較窄的通用彈窗） ---- */
+.modal-doc-narrow { max-width: 460px; }
+.modal-doc-narrow h3 { margin: 0 0 16px; color: var(--primary-dark); font-size: 1.1rem; }
+.modal-doc-narrow #costitem-list { margin-top: 16px; }
+.modal-doc-narrow #costitem-add-form { border-bottom: 1px dashed var(--border); padding-bottom: 14px; margin-bottom: 4px; }
+
+.btn-edit, .btn-costitems {
+  border: none;
+  background: #EEF1F8;
+  color: var(--primary-dark);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.doc-header-actions { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.doc-todo-table .btn-edit { white-space: nowrap; }
 
 footer {
   text-align: center;
