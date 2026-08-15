@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>門人夥伴管理系統</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <h1>門人夥伴管理系統</h1>
+  <p>會議記錄・專案進度・內部請款・遲到請假・庫存訂單</p>
+</header>
+
+<nav id="tabs">
+  <button data-tab="meeting" class="active">📝 會議記錄</button>
+  <button data-tab="project">📊 專案進度</button>
+  <button data-tab="expense">💰 內部請款</button>
+  <button data-tab="attendance">🕒 遲到請假</button>
+  <button data-tab="stock">📦 庫存訂單</button>
+</nav>
+
+<main>
+
+  <!-- 尚未設定 Apps Script 網址時的提醒 -->
+  <div id="config-warning" class="card" style="display:none; border-color:#C0392B;">
+    <strong style="color:#C0392B;">⚠️ 尚未完成設定</strong>
+    <p class="hint">請先依照「設定教學.md」，把 Google Apps Script 的網頁應用程式網址貼到 config.js 裡。</p>
+  </div>
+
+  <!-- ============ 會議記錄 ============ -->
+  <section id="panel-meeting" class="panel active">
+    <div class="card">
+      <h2>新增會議記錄</h2>
+      <form class="grid" data-type="meeting">
+        <label>會議日期
+          <input type="date" name="會議日期" required />
+        </label>
+        <label>會議主題
+          <input type="text" name="會議主題" placeholder="例如：8月例會" required />
+        </label>
+        <label>主持人
+          <select name="主持人" class="partner-select" required></select>
+        </label>
+        <label>出席人員
+          <input type="text" name="出席人員" placeholder="例如：王小明、林小美" />
+        </label>
+        <label class="full">本次會議內容
+          <textarea name="本次會議內容" placeholder="這次會議討論了什麼？"></textarea>
+        </label>
+        <label class="full">追蹤上次進度
+          <textarea name="追蹤上次進度" placeholder="上次的待辦事項，這次進行得如何？"></textarea>
+        </label>
+        <label class="full">待辦事項
+          <input type="text" name="待辦事項" placeholder="這次會議產生的新待辦事項" />
+        </label>
+        <label>負責人
+          <select name="負責人" class="partner-select"></select>
+        </label>
+        <label>預計完成日
+          <input type="date" name="預計完成日" />
+        </label>
+        <label>狀態
+          <select name="狀態">
+            <option>未開始</option>
+            <option>進行中</option>
+            <option>已完成</option>
+          </select>
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出會議記錄</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>會議記錄列表</h2>
+      <div class="table-wrap" data-list="meeting"></div>
+    </div>
+  </section>
+
+  <!-- ============ 專案進度 ============ -->
+  <section id="panel-project" class="panel">
+    <div class="card">
+      <h2>新增／更新專案事項</h2>
+      <form class="grid" data-type="project">
+        <label>專案名稱
+          <input type="text" name="專案名稱" required list="project-name-list" />
+          <datalist id="project-name-list"></datalist>
+        </label>
+        <label>事項內容
+          <input type="text" name="事項內容" required />
+        </label>
+        <label>負責人
+          <select name="負責人" class="partner-select" required></select>
+        </label>
+        <label>開始日期
+          <input type="date" name="開始日期" />
+        </label>
+        <label>預計完成日
+          <input type="date" name="預計完成日" />
+        </label>
+        <label>進度(%)
+          <input type="number" name="進度(%)" min="0" max="100" value="0" />
+        </label>
+        <label>狀態
+          <select name="狀態">
+            <option>未開始</option>
+            <option>進行中</option>
+            <option>已完成</option>
+            <option>延遲</option>
+          </select>
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出專案事項</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <p class="hint">說明：這裡是「新增一筆事項」，若要更新進度，請新增一筆同專案名稱、同事項的最新紀錄，或直接到 Google Sheet 修改。</p>
+    </div>
+    <div class="card">
+      <h2>專案進度列表</h2>
+      <div class="table-wrap" data-list="project"></div>
+    </div>
+  </section>
+
+  <!-- ============ 內部請款 ============ -->
+  <section id="panel-expense" class="panel">
+    <div class="card">
+      <h2>申請請款</h2>
+      <form class="grid" data-type="expense">
+        <label>申請日期
+          <input type="date" name="申請日期" required />
+        </label>
+        <label>申請人
+          <select name="申請人" class="partner-select" required></select>
+        </label>
+        <label>項目名稱
+          <input type="text" name="項目名稱" placeholder="例如：客戶拜訪交通費" required />
+        </label>
+        <label>金額
+          <input type="number" name="金額" min="0" step="1" required />
+        </label>
+        <label class="full">說明
+          <textarea name="說明" placeholder="請說明用途"></textarea>
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出申請</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <p class="hint">送出後審核狀態為「待審核」，管理者會在 Google Sheet 上核准／退回。</p>
+    </div>
+    <div class="card">
+      <h2>請款紀錄列表</h2>
+      <div class="table-wrap" data-list="expense"></div>
+    </div>
+  </section>
+
+  <!-- ============ 遲到請假 ============ -->
+  <section id="panel-attendance" class="panel">
+    <div class="card">
+      <h2>新增遲到／請假紀錄</h2>
+      <form class="grid" data-type="attendance">
+        <label>日期
+          <input type="date" name="日期" required />
+        </label>
+        <label>姓名
+          <select name="姓名" class="partner-select" required></select>
+        </label>
+        <label>類型
+          <select name="類型">
+            <option>遲到</option>
+            <option>請假</option>
+            <option>曠職</option>
+            <option>早退</option>
+          </select>
+        </label>
+        <label>時數/天數
+          <input type="number" name="時數/天數" min="0" step="0.5" />
+        </label>
+        <label class="full">原因
+          <input type="text" name="原因" />
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出紀錄</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>遲到請假紀錄列表</h2>
+      <div class="table-wrap" data-list="attendance"></div>
+    </div>
+  </section>
+
+  <!-- ============ 庫存訂單 ============ -->
+  <section id="panel-stock" class="panel">
+    <div class="card subsection">
+      <h2>周邊商品</h2>
+
+      <h3>新增訂單紀錄</h3>
+      <form class="grid" data-type="order">
+        <label>訂購日期
+          <input type="date" name="訂購日期" required />
+        </label>
+        <label>品項名稱
+          <input type="text" name="品項名稱" required list="inventory-name-list" />
+          <datalist id="inventory-name-list"></datalist>
+        </label>
+        <label>數量
+          <input type="number" name="數量" min="1" step="1" required />
+        </label>
+        <label>單價
+          <input type="number" name="單價" min="0" step="1" required />
+        </label>
+        <label>訂購人
+          <select name="訂購人" class="partner-select" required></select>
+        </label>
+        <label>客戶/對象
+          <input type="text" name="客戶/對象" />
+        </label>
+        <label>狀態
+          <select name="狀態">
+            <option>待處理</option>
+            <option>已出貨</option>
+            <option>已取消</option>
+          </select>
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出訂單</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <div class="table-wrap" data-list="order"></div>
+
+      <h3>新增庫存品項</h3>
+      <form class="grid" data-type="inventory">
+        <label>品項名稱
+          <input type="text" name="品項名稱" required />
+        </label>
+        <label>目前庫存
+          <input type="number" name="目前庫存" min="0" step="1" required />
+        </label>
+        <label>安全庫存
+          <input type="number" name="安全庫存" min="0" step="1" required />
+        </label>
+        <label>單位
+          <input type="text" name="單位" placeholder="例如：個、件" />
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">新增品項</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <p class="hint">若要調整既有品項的庫存數量，請直接到 Google Sheet 的「庫存清單」分頁修改。</p>
+      <div class="table-wrap" data-list="inventory"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>門人夥伴管理系統 · 資料儲存於 Google Sheet</footer>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

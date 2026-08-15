@@ -1,0 +1,189 @@
+:root {
+  --primary: #4472C4;
+  --primary-dark: #2F5597;
+  --bg: #F4F6FA;
+  --card: #FFFFFF;
+  --border: #E1E5EE;
+  --text: #2B2E38;
+  --muted: #767C8C;
+  --ok: #2E7D32;
+  --warn: #C77700;
+  --danger: #C0392B;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  background: linear-gradient(120deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  padding: 20px 16px;
+  text-align: center;
+}
+
+header h1 { margin: 0 0 4px; font-size: 1.4rem; }
+header p { margin: 0; font-size: 0.85rem; opacity: 0.9; }
+
+nav#tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+nav#tabs button {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+nav#tabs button.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+  color: var(--primary-dark);
+}
+
+form.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+}
+
+form.grid .full { grid-column: 1 / -1; }
+
+label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+  color: var(--muted);
+  gap: 4px;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+textarea { resize: vertical; min-height: 60px; }
+
+.submit-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+button.primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.status-msg { font-size: 0.85rem; }
+.status-msg.ok { color: var(--ok); }
+.status-msg.error { color: var(--danger); }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+th, td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 6px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+th { color: var(--muted); font-weight: 600; background: #fafbfd; }
+
+.table-wrap { overflow-x: auto; }
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #EEF1F8;
+  color: var(--primary-dark);
+}
+
+.tag.已完成, .tag.已核准, .tag.已出貨, .tag.充足 { background: #E6F4EA; color: var(--ok); }
+.tag.待審核, .tag.待處理, .tag.進行中 { background: #FFF4E0; color: var(--warn); }
+.tag.已退回, .tag.已取消, .tag.需補貨, .tag.曠職 { background: #FBE7E5; color: var(--danger); }
+
+.hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: -4px;
+}
+
+.subsection h3 {
+  margin: 18px 0 8px;
+  font-size: 1rem;
+  color: var(--primary-dark);
+}
+
+footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 24px;
+}
+
+@media (max-width: 600px) {
+  form.grid { grid-template-columns: 1fr; }
+}
