@@ -238,6 +238,78 @@ function tagHtml(value) {
   return `<span class="tag ${escapeHtml(String(value))}">${escapeHtml(String(value))}</span>`;
 }
 
+// ---------- 手機畫面：確保寬表格不會把整個頁面撐開，改成表格自己左右滑動 ----------
+// 任何剛塞進 DOM 的 <table>，如果還沒有被 .table-wrap／.doc-table-wrap 包住，就自動包一層；
+// 接著量測是否真的比容器寬，是的話才在表格上方加一行「可以左右滑動」提示，避免看起來像是壞掉了。
+function enhanceScrollableTables(root) {
+  if (!root) return;
+  root.querySelectorAll('table').forEach(table => {
+    let wrap = table.parentElement;
+    if (!wrap.classList.contains('table-wrap') && !wrap.classList.contains('doc-table-wrap')) {
+      wrap = document.createElement('div');
+      wrap.className = 'doc-table-wrap';
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    }
+    const needsHint = table.scrollWidth > wrap.clientWidth + 2;
+    const prev = wrap.previousElementSibling;
+    if (needsHint) {
+      if (!prev || !prev.classList.contains('scroll-hint')) {
+        const p = document.createElement('p');
+        p.className = 'scroll-hint';
+        p.textContent = '← 表格可以左右滑動，查看更多欄位 →';
+        wrap.parentNode.insertBefore(p, wrap);
+      }
+    } else if (prev && prev.classList.contains('scroll-hint')) {
+      prev.remove();
+    }
+  });
+}
+
+// ---------- 首頁儀表板：重點數字 ----------
+async function loadDashboardStats() {
+  const box = document.getElementById('dashboard-stats');
+  if (!box) return;
+  try {
+    const [todoRes, settlementRes, meetingRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'meetingTodo' }),
+      apiGet({ action: 'list', type: 'projectSettlement' }),
+      apiGet({ action: 'list', type: 'meeting' })
+    ]);
+    const today = todayStr();
+    const thisMonth = today.slice(0, 7);
+    const todos = (todoRes.ok ? todoRes.data : []) || [];
+    const settlements = (settlementRes.ok ? settlementRes.data : []) || [];
+    const meetings = (meetingRes.ok ? meetingRes.data : []) || [];
+
+    const overdueCount = todos.filter(t => t['狀態'] !== '已完成' && t['預計完成日'] && t['預計完成日'] < today).length;
+    const pendingReleaseCount = settlements.filter(s => s['完成狀態'] === '已完成' && s['放行狀態'] !== '已放行').length;
+    const monthlyMeetingCount = meetings.filter(m => m['會議日期'] && String(m['會議日期']).slice(0, 7) === thisMonth).length;
+
+    const tiles = [
+      { label: '逾期待辦事項', value: overdueCount, tone: overdueCount > 0 ? 'danger' : 'ok', cat: 'meeting', view: 'meeting-todo-list' },
+      { label: '待放行分潤', value: pendingReleaseCount, tone: pendingReleaseCount > 0 ? 'warn' : 'ok', cat: 'project', view: 'project-settlement-summary' },
+      { label: '本月會議次數', value: monthlyMeetingCount, tone: 'muted', cat: 'meeting', view: 'meeting-track' }
+    ];
+
+    box.innerHTML = tiles.map(t => `
+      <div class="stat-tile stat-${t.tone}" data-cat="${t.cat}" data-view="${t.view}">
+        <div class="stat-value">${t.value}</div>
+        <div class="stat-label">${escapeHtml(t.label)}</div>
+      </div>
+    `).join('');
+    box.querySelectorAll('.stat-tile').forEach(tile => {
+      tile.addEventListener('click', () => {
+        openCategory(tile.dataset.cat);
+        showView(tile.dataset.view);
+      });
+    });
+    box.style.display = 'grid';
+  } catch (err) {
+    box.style.display = 'none';
+  }
+}
+
 // ---------- 首頁卡片 ----------
 function buildHomeGrid() {
   const grid = document.getElementById('home-grid');
@@ -278,6 +350,7 @@ function goHome() {
   document.getElementById('view-home').classList.add('active');
   document.getElementById('page-title').textContent = '門人夥伴管理系統';
   document.getElementById('page-subtitle').textContent = '請選擇要使用的功能';
+  if (isConfigured()) loadDashboardStats();
 }
 
 function showView(viewKey) {
@@ -559,6 +632,7 @@ async function renderCostItemsList(settlementId, projectName, month, onChange) {
           <td><button type="button" class="btn-edit" data-id="${escapeHtml(i['編號'])}">編輯</button></td>
         </tr>`).join('') +
       `</tbody></table><p class="hint">目前加總成本：${total}</p>`;
+    enhanceScrollableTables(listEl);
 
     listEl.querySelectorAll('.btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -820,6 +894,7 @@ async function loadList(type, viewKey) {
     });
     html += '</tbody></table>';
     container.innerHTML = html;
+    enhanceScrollableTables(container);
 
     if (linkInfo) {
       container.querySelectorAll('tr[data-fk-id]').forEach(tr => {
@@ -1109,6 +1184,7 @@ function renderSettlementSummary() {
       </div>
     `;
   }).join('');
+  enhanceScrollableTables(container);
 
   container.querySelectorAll('.btn-release').forEach(btn => {
     btn.addEventListener('click', () => decideSettlementRelease(btn.dataset.settlementId, btn.dataset.decision));
@@ -1304,6 +1380,7 @@ function renderMeetingTodoList() {
       </div>
     `;
   }).join('');
+  enhanceScrollableTables(container);
 
   container.querySelectorAll('.btn-complete-todo').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1423,6 +1500,7 @@ async function loadLastMeetingReference() {
       </div>
     `;
     card.style.display = 'block';
+    enhanceScrollableTables(content);
 
     wireUnfinishedReasonButtons(content);
   } catch (err) {
@@ -1519,6 +1597,7 @@ async function openMeetingDetail(meetingId) {
       </div>
       ${docBlock('備註', meeting['備註'])}
     `;
+    enhanceScrollableTables(content);
 
     document.getElementById('btn-edit-meeting').addEventListener('click', () => {
       openEditModal('meeting', meeting, () => {
@@ -1640,6 +1719,7 @@ async function openProjectDetail(projectId) {
       ${settlementBlock}
       ${docBlock('備註', project['備註'])}
     `;
+    enhanceScrollableTables(content);
 
     document.getElementById('btn-edit-project').addEventListener('click', () => {
       openEditModal('project', project, () => { openProjectDetail(projectId); loadDocList('project'); loadProjectTrackList(); });
@@ -2061,6 +2141,7 @@ function init() {
   loadDatalist('inventory', '品項名稱', 'inventory-name-list');
   populateSettlementProjectSelect();
   populateExpenseItemProjectSelect();
+  loadDashboardStats();
 }
 
 document.addEventListener('DOMContentLoaded', init);

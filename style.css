@@ -46,6 +46,36 @@ main {
 .view { display: none; }
 .view.active { display: block; }
 
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stat-tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.stat-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.stat-tile .stat-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.stat-tile .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+.stat-tile.stat-danger .stat-value { color: var(--danger); }
+.stat-tile.stat-warn .stat-value { color: var(--warn); }
+.stat-tile.stat-ok .stat-value { color: var(--ok); }
+.stat-tile.stat-muted .stat-value { color: var(--primary-dark); }
+
 .home-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -212,7 +242,21 @@ th, td {
 
 th { color: var(--muted); font-weight: 600; background: #FAFAFA; }
 
-.table-wrap { overflow-x: auto; }
+.table-wrap, .doc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* 表格比手機螢幕寬時，上方會自動出現這行提示（見 app.js 的 enhanceScrollableTables），
+   讓使用者知道可以左右滑動，不是畫面壞掉了 */
+.scroll-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 6px;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  th, td { max-width: 120px; padding: 7px 5px; }
+  table { font-size: 0.8rem; }
+}
 
 tr.clickable-row { cursor: pointer; }
 tr.clickable-row:hover td { background: var(--tint); }
@@ -480,4 +524,8 @@ footer {
 
 @media (max-width: 600px) {
   form.grid { grid-template-columns: 1fr; }
+  main { padding: 12px; }
+  .card { padding: 14px; }
+  .modal-overlay { padding: 14px 8px; }
+  .modal-doc { padding: 20px 16px; }
 }
