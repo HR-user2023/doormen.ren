@@ -266,7 +266,7 @@ function enhanceScrollableTables(root) {
   });
 }
 
-// ---------- 首頁：逾期待辦事項清單（獨立條列顯示，點了可以到完整清單頁） ----------
+// ---------- 首頁：待辦事項清單（只顯示「進行中」的，獨立條列顯示，點了可以到完整清單頁） ----------
 async function loadDashboardStats() {
   const box = document.getElementById('dashboard-stats');
   if (!box) return;
@@ -275,19 +275,21 @@ async function loadDashboardStats() {
     const today = todayStr();
     const todos = (todoRes.ok ? todoRes.data : []) || [];
 
-    const overdue = todos
-      .filter(t => t['狀態'] !== '已完成' && t['預計完成日'] && t['預計完成日'] < today)
+    const inProgress = todos
+      .filter(t => t['狀態'] === '進行中')
       .sort((a, b) => String(a['預計完成日'] || '').localeCompare(String(b['預計完成日'] || '')));
 
-    const listHtml = overdue.length === 0
-      ? '<p class="hint">目前沒有逾期的待辦事項。</p>'
-      : '<ul class="hint-list">' + overdue.map(t =>
-          `<li>${escapeHtml(t['負責人'] || '未指定')}｜${escapeHtml(t['待辦事項內容'] || '')}
-            （預計完成日：${escapeHtml(t['預計完成日'] || '')} <span class="overdue-note">已逾期</span>）</li>`
-        ).join('') + '</ul>';
+    const listHtml = inProgress.length === 0
+      ? '<p class="hint">目前沒有進行中的待辦事項。</p>'
+      : '<ul class="hint-list">' + inProgress.map(t => {
+          const due = t['預計完成日'] || '';
+          const overdue = due && due < today;
+          return `<li>${escapeHtml(t['負責人'] || '未指定')}｜${escapeHtml(t['待辦事項內容'] || '')}
+            （預計完成日：${escapeHtml(due)}${overdue ? ' <span class="overdue-note">已逾期</span>' : ''}）</li>`;
+        }).join('') + '</ul>';
 
     box.innerHTML = `
-      <h2>逾期待辦事項${overdue.length > 0 ? '（' + overdue.length + ' 筆）' : ''}</h2>
+      <h2>待辦事項${inProgress.length > 0 ? '（' + inProgress.length + ' 筆）' : ''}</h2>
       ${listHtml}
       <button type="button" id="dashboard-todo-more" class="secondary">查看完整待辦事項清單</button>
     `;
