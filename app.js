@@ -88,7 +88,7 @@ const TYPE_LABEL = {
   attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料'
 };
 
-// type: text / textarea / number / date / month / select / partner
+// type: text / textarea / number / date / month / select / partner / member / account
 // 沒有列在這裡的欄位（例如公式欄位、編號、關聯欄位）不會出現在編輯表單裡
 const FIELD_META = {
   meeting: {
@@ -266,45 +266,36 @@ function enhanceScrollableTables(root) {
   });
 }
 
-// ---------- 首頁儀表板：重點數字 ----------
+// ---------- 首頁：逾期待辦事項清單（獨立條列顯示，點了可以到完整清單頁） ----------
 async function loadDashboardStats() {
   const box = document.getElementById('dashboard-stats');
   if (!box) return;
   try {
-    const [todoRes, settlementRes, meetingRes] = await Promise.all([
-      apiGet({ action: 'list', type: 'meetingTodo' }),
-      apiGet({ action: 'list', type: 'projectSettlement' }),
-      apiGet({ action: 'list', type: 'meeting' })
-    ]);
+    const todoRes = await apiGet({ action: 'list', type: 'meetingTodo' });
     const today = todayStr();
-    const thisMonth = today.slice(0, 7);
     const todos = (todoRes.ok ? todoRes.data : []) || [];
-    const settlements = (settlementRes.ok ? settlementRes.data : []) || [];
-    const meetings = (meetingRes.ok ? meetingRes.data : []) || [];
 
-    const overdueCount = todos.filter(t => t['狀態'] !== '已完成' && t['預計完成日'] && t['預計完成日'] < today).length;
-    const pendingReleaseCount = settlements.filter(s => s['完成狀態'] === '已完成' && s['放行狀態'] !== '已放行').length;
-    const monthlyMeetingCount = meetings.filter(m => m['會議日期'] && String(m['會議日期']).slice(0, 7) === thisMonth).length;
+    const overdue = todos
+      .filter(t => t['狀態'] !== '已完成' && t['預計完成日'] && t['預計完成日'] < today)
+      .sort((a, b) => String(a['預計完成日'] || '').localeCompare(String(b['預計完成日'] || '')));
 
-    const tiles = [
-      { label: '逾期待辦事項', value: overdueCount, tone: overdueCount > 0 ? 'danger' : 'ok', cat: 'meeting', view: 'meeting-todo-list' },
-      { label: '待放行分潤', value: pendingReleaseCount, tone: pendingReleaseCount > 0 ? 'warn' : 'ok', cat: 'project', view: 'project-settlement-summary' },
-      { label: '本月會議次數', value: monthlyMeetingCount, tone: 'muted', cat: 'meeting', view: 'meeting-track' }
-    ];
+    const listHtml = overdue.length === 0
+      ? '<p class="hint">目前沒有逾期的待辦事項。</p>'
+      : '<ul class="hint-list">' + overdue.map(t =>
+          `<li>${escapeHtml(t['負責人'] || '未指定')}｜${escapeHtml(t['待辦事項內容'] || '')}
+            （預計完成日：${escapeHtml(t['預計完成日'] || '')} <span class="overdue-note">已逾期</span>）</li>`
+        ).join('') + '</ul>';
 
-    box.innerHTML = tiles.map(t => `
-      <div class="stat-tile stat-${t.tone}" data-cat="${t.cat}" data-view="${t.view}">
-        <div class="stat-value">${t.value}</div>
-        <div class="stat-label">${escapeHtml(t.label)}</div>
-      </div>
-    `).join('');
-    box.querySelectorAll('.stat-tile').forEach(tile => {
-      tile.addEventListener('click', () => {
-        openCategory(tile.dataset.cat);
-        showView(tile.dataset.view);
-      });
+    box.innerHTML = `
+      <h2>逾期待辦事項${overdue.length > 0 ? '（' + overdue.length + ' 筆）' : ''}</h2>
+      ${listHtml}
+      <button type="button" id="dashboard-todo-more" class="secondary">查看完整待辦事項清單</button>
+    `;
+    document.getElementById('dashboard-todo-more').addEventListener('click', () => {
+      openCategory('meeting');
+      showView('meeting-todo-list');
     });
-    box.style.display = 'grid';
+    box.style.display = 'block';
   } catch (err) {
     box.style.display = 'none';
   }
@@ -2145,3 +2136,12 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// 註冊 Service Worker：讓手機瀏覽器可以把這個網頁「加入主畫面」，像 App 一樣全螢幕開啟
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // 註冊失敗不影響網頁其他功能，靜默忽略即可（例如用 file:// 開啟本機檔案時就會失敗）
+    });
+  });
+}

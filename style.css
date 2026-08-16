@@ -46,41 +46,12 @@ main {
 .view { display: none; }
 .view.active { display: block; }
 
-.dashboard-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.stat-tile {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-
-.stat-tile:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.stat-tile .stat-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
-.stat-tile .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
-
-.stat-tile.stat-danger .stat-value { color: var(--danger); }
-.stat-tile.stat-warn .stat-value { color: var(--warn); }
-.stat-tile.stat-ok .stat-value { color: var(--ok); }
-.stat-tile.stat-muted .stat-value { color: var(--primary-dark); }
-
 .home-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 14px;
   margin-top: 4px;
+  margin-bottom: 22px;
 }
 
 .home-card {

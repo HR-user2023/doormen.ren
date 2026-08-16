@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>門人夥伴管理系統</title>
 <link rel="stylesheet" href="style.css" />
+
+<!-- 加入主畫面設定：讓這個網頁可以像 App 一樣加到手機主畫面、全螢幕開啟（沒有瀏覽器網址列） -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#171717" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="門人夥伴" />
 </head>
 <body>
 
@@ -29,8 +38,8 @@
 
   <!-- ============ 首頁：入口卡片 ============ -->
   <section id="view-home" class="view active">
-    <div id="dashboard-stats" class="dashboard-stats" style="display:none;"></div>
     <div id="home-grid" class="home-grid"></div>
+    <div id="dashboard-stats" class="card" style="display:none;"></div>
   </section>
 
   <!-- ============ 類別頁：返回鈕 + 子頁籤 ============ -->
@@ -608,6 +617,7 @@
       <div class="table-wrap" data-list="member"></div>
     </div>
   </section>
+
 
 </main>
 
