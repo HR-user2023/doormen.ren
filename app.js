@@ -52,8 +52,18 @@ const CATEGORIES = [
   {
     key: 'ledger', title: '記帳', desc: '四帳戶記帳、發票追蹤',
     subs: [
-      { key: 'ledger-entry', label: '記帳' },
+      { key: 'ledger-entry', label: '逐筆記帳' },
+      { key: 'ledger-overview', label: '本月收支總覽' },
       { key: 'ledger-invoice', label: '發票待開立' }
+    ]
+  },
+  {
+    key: 'ticket', title: '售票／上課', desc: '售票登記、上課出席',
+    subs: [
+      { key: 'ticket-type-setup', label: '票種設定' },
+      { key: 'ticket-sales', label: '售票登記' },
+      { key: 'class-session', label: '上課紀錄' },
+      { key: 'student-overview', label: '學員總覽' }
     ]
   }
 ];
@@ -79,7 +89,10 @@ const VIEW_DATA_TYPE = {
   'product-orders': 'order',
   'expense-track': 'expense',
   'attendance-track': 'attendance',
-  'member-list': 'member'
+  'member-list': 'member',
+  'ticket-type-setup': 'ticketType',
+  'ticket-sales': 'ticket',
+  'class-session': 'classSession'
 };
 
 const COLUMN_ORDER = {
@@ -94,10 +107,13 @@ const COLUMN_ORDER = {
   inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '是否需補貨', '備註'],
   order: ['訂購日期', '品項名稱', '數量', '單價', '金額', '訂購人', '客戶/對象', '狀態', '備註'],
   member: ['會員名稱', '聯絡人', '電話', 'Email', '會員等級', '年費', '押金', '銀行', '帳號', '城市', '所屬區域',
-           '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註']
+           '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註'],
+  ticketType: ['票種名稱', '金額', '備註'],
+  ticket: ['購買日期', '票種', '身分', '購買人', '金額', '有效期限', '備註'],
+  classSession: ['日期', '課程名稱', '人數', '收入', '成本', '盈利', '備註']
 };
 
-const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態']);
+const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態', '票種', '身分', '出席狀態']);
 const LINK_COLUMNS = new Set(['收據附件']);
 
 // 明細列表用：點一列可以打開來源文件的詳細頁（目前所有明細列表都已改成卡片式，暫時沒有用到，保留機制供之後使用）
@@ -107,7 +123,8 @@ const DETAIL_LINK = {};
 const TYPE_LABEL = {
   meeting: '會議記錄', meetingTopic: '會議議題', meetingTodo: '待辦事項', project: '專案', projectItem: '工作事項',
   projectSettlement: '分潤結算', projectExpenseItem: '支出項目', expense: '請款紀錄',
-  attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料'
+  attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料',
+  ticketType: '票種設定', ticket: '售票紀錄', classSession: '上課紀錄'
 };
 
 // type: text / textarea / number / date / month / select / partner / member / account
@@ -215,6 +232,28 @@ const FIELD_META = {
     品牌理念評估: { type: 'textarea', optional: true },
     營運狀況評估: { type: 'textarea', optional: true },
     備註: { type: 'text' }
+  },
+  ticketType: {
+    票種名稱: { type: 'text' },
+    金額: { type: 'number' },
+    備註: { type: 'text', optional: true }
+  },
+  ticket: {
+    購買日期: { type: 'date' },
+    票種: { type: 'text' },
+    身分: { type: 'select', options: ['會員', '非會員'] },
+    購買人: { type: 'text' },
+    金額: { type: 'number' },
+    有效期限: { type: 'date', optional: true },
+    備註: { type: 'text', optional: true }
+  },
+  classSession: {
+    日期: { type: 'date' },
+    課程名稱: { type: 'text' },
+    人數: { type: 'number', optional: true },
+    收入: { type: 'number', optional: true },
+    成本: { type: 'number', optional: true },
+    備註: { type: 'text', optional: true }
   }
 };
 
@@ -483,7 +522,10 @@ function showView(viewKey) {
   if (viewKey === 'project-settlement') { populateSettlementProjectSelect(); populateExpenseItemProjectSelect(); }
   if (viewKey === 'project-settlement-summary') loadSettlementSummaryData();
   if (viewKey === 'ledger-entry') loadLedgerView();
+  if (viewKey === 'ledger-overview') loadLedgerView();
   if (viewKey === 'ledger-invoice') loadInvoicePendingList();
+  if (viewKey === 'ticket-sales') loadDatalist('ticketType', '票種名稱', 'ticket-type-name-list');
+  if (viewKey === 'student-overview') loadStudentOverview();
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -775,6 +817,242 @@ function closeCostItemsModal() {
   document.getElementById('costitem-overlay').classList.remove('active');
 }
 
+// ---------- 上課紀錄：出席名單彈窗（勾選誰來、誰沒來，名單以「售票登記」年票／季票購買人為主） ----------
+let attendanceCurrentSession = null;
+let attendanceRows = []; // [{ name, present }]
+
+async function openAttendanceModal(session) {
+  attendanceCurrentSession = session;
+  document.getElementById('attendance-title').textContent =
+    '出席名單－ ' + (session['日期'] || '') + ' ' + (session['課程名稱'] || '');
+  const msg = document.getElementById('attendance-msg');
+  msg.textContent = '';
+  msg.className = 'status-msg';
+  document.getElementById('attendance-add-name').value = '';
+  document.getElementById('attendance-list').innerHTML = '<p class="hint">載入中…</p>';
+  document.getElementById('attendance-overlay').classList.add('active');
+
+  try {
+    const [ticketRes, attendanceRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'ticket' }),
+      apiGet({ action: 'list', type: 'classAttendance' })
+    ]);
+    if (!ticketRes.ok) {
+      document.getElementById('attendance-list').innerHTML =
+        `<p class="hint">讀取售票登記失敗：${escapeHtml(ticketRes.error || '')}</p>`;
+      return;
+    }
+
+    const sessionDate = session['日期'] || '';
+    // 票種名稱含「年票」或「季票」（例如「年票-會員」「季票-非會員」），且「沒填有效期限」或「有效期限 >= 上課日期」才視為還在效期內
+    // 用「包含」而不是完全比對，是因為「票種」現在是自由輸入（可能是「年票-會員」這種名稱），不再只有固定的「年票」「季票」兩種寫法
+    const validNames = [];
+    (ticketRes.data || []).forEach(t => {
+      const kind = String(t['票種'] || '');
+      if (!kind.includes('年票') && !kind.includes('季票')) return;
+      const expiry = t['有效期限'];
+      if (expiry && sessionDate && String(expiry) < sessionDate) return;
+      const name = t['購買人'];
+      if (name && !validNames.includes(name)) validNames.push(name);
+    });
+
+    const existing = attendanceRes.ok
+      ? (attendanceRes.data || []).filter(a => String(a['上課紀錄編號']) === String(session['編號']))
+      : [];
+    const existingMap = {};
+    existing.forEach(a => { existingMap[a['購買人']] = a['出席狀態']; });
+
+    // 名單以目前效期內的年票／季票購買人為主；之前存過但現在不在效期清單裡的人（例如單堂票、臨時來賓）也一併帶出來，避免資料不見
+    const names = validNames.slice();
+    existing.forEach(a => {
+      if (a['購買人'] && !names.includes(a['購買人'])) names.push(a['購買人']);
+    });
+
+    attendanceRows = names.map(name => ({
+      name,
+      // 沒有存過紀錄的人，預設勾選（視為出席），需要老師自己取消勾選缺席的人
+      present: existingMap[name] ? existingMap[name] === '出席' : true
+    }));
+
+    renderAttendanceChecklist();
+  } catch (err) {
+    document.getElementById('attendance-list').innerHTML = '<p class="hint">讀取失敗，請確認網路連線。</p>';
+    console.error(err);
+  }
+}
+
+function renderAttendanceChecklist() {
+  const listEl = document.getElementById('attendance-list');
+  if (attendanceRows.length === 0) {
+    listEl.innerHTML = '<p class="hint">目前沒有還在效期內的年票／季票購買人，可以在下面手動加入姓名。</p>';
+    return;
+  }
+  listEl.innerHTML = '<div class="attendance-checklist">' + attendanceRows.map((row, idx) => `
+      <label>
+        <input type="checkbox" data-idx="${idx}" ${row.present ? 'checked' : ''} />
+        ${escapeHtml(row.name)}
+      </label>
+    `).join('') + '</div>';
+
+  listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      attendanceRows[Number(cb.dataset.idx)].present = cb.checked;
+    });
+  });
+}
+
+function closeAttendanceModal() {
+  document.getElementById('attendance-overlay').classList.remove('active');
+  attendanceCurrentSession = null;
+  attendanceRows = [];
+}
+
+function setupAttendanceModal() {
+  document.getElementById('attendance-add-btn').addEventListener('click', () => {
+    const input = document.getElementById('attendance-add-name');
+    const name = input.value.trim();
+    if (!name) return;
+    if (attendanceRows.some(r => r.name === name)) { input.value = ''; return; }
+    attendanceRows.push({ name, present: true });
+    input.value = '';
+    renderAttendanceChecklist();
+  });
+
+  document.getElementById('attendance-save-btn').addEventListener('click', async () => {
+    if (!attendanceCurrentSession) return;
+    const btn = document.getElementById('attendance-save-btn');
+    const msg = document.getElementById('attendance-msg');
+    btn.disabled = true;
+    msg.textContent = '儲存中…';
+    msg.className = 'status-msg';
+    try {
+      const items = attendanceRows.map(r => ({ 購買人: r.name, 出席狀態: r.present ? '出席' : '缺席' }));
+      const res = await apiPostRaw({
+        action: 'saveClassAttendance',
+        sessionId: attendanceCurrentSession['編號'],
+        date: attendanceCurrentSession['日期'],
+        courseName: attendanceCurrentSession['課程名稱'],
+        items
+      });
+      if (res.ok) {
+        msg.textContent = '✅ 已儲存';
+        msg.className = 'status-msg ok';
+      } else {
+        msg.textContent = '❌ 儲存失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    } catch (err) {
+      msg.textContent = '❌ 儲存失敗，請確認網路連線';
+      msg.className = 'status-msg error';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+// ---------- 學員總覽：不用另外填資料，即時從「售票登記」＋「上課出席名單」算出來 ----------
+async function loadStudentOverview() {
+  const wrap = document.getElementById('student-overview-wrap');
+  wrap.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const [ticketRes, attendanceRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'ticket' }),
+      apiGet({ action: 'list', type: 'classAttendance' })
+    ]);
+    if (!ticketRes.ok) {
+      wrap.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(ticketRes.error || '')}</p>`;
+      return;
+    }
+
+    // 每個購買人取「購買日期」最新的一筆售票紀錄，當作目前的票種資料
+    const ticketByName = {};
+    (ticketRes.data || []).forEach(t => {
+      const name = t['購買人'];
+      if (!name) return;
+      const existing = ticketByName[name];
+      if (!existing || String(t['購買日期'] || '') >= String(existing['購買日期'] || '')) {
+        ticketByName[name] = t;
+      }
+    });
+
+    // 每個人的出席紀錄（不分票種期間，全部累計）
+    const attendanceByName = {};
+    const attendanceRows = attendanceRes.ok ? (attendanceRes.data || []) : [];
+    attendanceRows.forEach(a => {
+      const name = a['購買人'];
+      if (!name) return;
+      (attendanceByName[name] = attendanceByName[name] || []).push(a);
+    });
+
+    const names = [...new Set([...Object.keys(ticketByName), ...Object.keys(attendanceByName)])]
+      .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+
+    if (names.length === 0) {
+      wrap.innerHTML = '<p class="hint">目前還沒有售票或上課出席資料。</p>';
+      return;
+    }
+
+    const rowsHtml = names.map(name => {
+      const ticket = ticketByName[name];
+      const records = attendanceByName[name] || [];
+      const attended = records.filter(r => r['出席狀態'] === '出席').length;
+      return `
+        <tr>
+          <td>${escapeHtml(name)}</td>
+          <td>${ticket ? escapeHtml(ticket['票種'] || '') : '-'}</td>
+          <td>${ticket ? tagHtml(ticket['身分'] || '') : '-'}</td>
+          <td>${ticket ? escapeHtml(ticket['有效期限'] || '') : '-'}</td>
+          <td class="amt">${records.length}</td>
+          <td class="amt">${attended}</td>
+          <td><button type="button" class="btn-student-detail" data-name="${escapeHtml(name)}">查看明細</button></td>
+        </tr>
+      `;
+    }).join('');
+
+    wrap.innerHTML = `
+      <table class="cat-table">
+        <thead><tr><th>姓名</th><th>目前票種</th><th>身分</th><th>有效期限</th><th>已上堂數</th><th>出席次數</th><th>操作</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+    enhanceScrollableTables(wrap);
+
+    wrap.querySelectorAll('.btn-student-detail').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openStudentDetail(btn.dataset.name, attendanceByName[btn.dataset.name] || []);
+      });
+    });
+  } catch (err) {
+    wrap.innerHTML = '<p class="hint">讀取失敗，請確認網路連線。</p>';
+    console.error(err);
+  }
+}
+
+function openStudentDetail(name, records) {
+  const content = document.getElementById('detail-content');
+  const sorted = [...records].sort((a, b) => String(b['日期'] || '').localeCompare(String(a['日期'] || '')));
+  const attended = sorted.filter(r => r['出席狀態'] === '出席').length;
+  const rowsHtml = sorted.map(r => `
+    <tr>
+      <td>${escapeHtml(r['日期'] || '')}</td>
+      <td>${escapeHtml(r['課程名稱'] || '')}</td>
+      <td>${tagHtml(r['出席狀態'] || '')}</td>
+    </tr>
+  `).join('');
+  content.innerHTML = `
+    <h3>${escapeHtml(name)}　上課明細</h3>
+    <p class="hint">共 ${sorted.length} 堂，出席 ${attended} 次、缺席 ${sorted.length - attended} 次。</p>
+    ${sorted.length ? `
+      <table class="cat-table">
+        <thead><tr><th>日期</th><th>課程名稱</th><th>出席狀態</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    ` : '<p class="hint">目前還沒有上課紀錄。</p>'}
+  `;
+  document.getElementById('detail-overlay').classList.add('active');
+}
+
 // ---------- 分潤結算：專案下拉選單（登記收入、登記支出兩個表單共用） ----------
 async function populateProjectSelect(selectEl) {
   if (!selectEl) return;
@@ -980,6 +1258,7 @@ async function loadList(type, viewKey) {
     const linkInfo = DETAIL_LINK[type];
     const isExpense = type === 'expense';
     const isSettlement = type === 'projectSettlement';
+    const isClassSession = type === 'classSession';
     const canEdit = !!FIELD_META[type];
     let headerCols = cols.slice();
     if (canEdit || isExpense || isSettlement) headerCols = headerCols.concat(['操作']);
@@ -1003,6 +1282,9 @@ async function loadList(type, viewKey) {
         if (isSettlement) {
           const label = escapeHtml((r['專案名稱'] || '') + '　' + (r['月份'] || ''));
           actionHtml += ` <button type="button" class="btn-costitems" data-settlement-id="${escapeHtml(r['編號'])}" data-settlement-label="${label}" data-project-name="${escapeHtml(r['專案名稱'] || '')}" data-month="${escapeHtml(r['月份'] || '')}">支出明細</button>`;
+        }
+        if (isClassSession) {
+          actionHtml += ` <button type="button" class="btn-attendance" data-session-id="${escapeHtml(r['編號'])}">出席名單</button>`;
         }
         if (isExpense && r['審核狀態'] === '待審核') {
           actionHtml += ` <button type="button" class="btn-approve" data-expense-id="${escapeHtml(r['編號'])}" data-decision="已核准">核准</button>
@@ -1053,6 +1335,16 @@ async function loadList(type, viewKey) {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           decideExpense(btn.dataset.expenseId, btn.dataset.decision, type, viewKey);
+        });
+      });
+    }
+
+    if (isClassSession) {
+      container.querySelectorAll('.btn-attendance').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const rowData = rows.find(r => String(r['編號']) === btn.dataset.sessionId);
+          if (rowData) openAttendanceModal(rowData);
         });
       });
     }
@@ -2248,19 +2540,24 @@ function setupExpenseForm() {
 // ---------- 記帳：市集／教育／選品店／門人四個帳戶，同一個入口切換帳戶，各自存到自己的分頁 ----------
 let ledgerFormSetup = false;
 
+// 「逐筆記帳」「本月收支總覽」是兩個分開的頁籤，各自有自己的帳戶切換列，這裡把兩個都畫出來、保持同步
+const LEDGER_ACCOUNT_TAB_CONTAINER_IDS = ['ledger-account-tabs', 'ledger-overview-account-tabs'];
+
 function renderLedgerAccountTabs() {
-  const box = document.getElementById('ledger-account-tabs');
-  if (!box) return;
-  box.innerHTML = LEDGER_ACCOUNTS.map(a =>
-    `<button type="button" data-account="${a.key}" class="${a.key === ledgerCurrentAccountKey ? 'active' : ''}">${escapeHtml(a.label)}</button>`
-  ).join('');
-  box.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.account === ledgerCurrentAccountKey) return;
-      ledgerCurrentAccountKey = btn.dataset.account;
-      ledgerCurrentMonth = null; // 換帳戶時，月份總覽改成該帳戶預設的最新月份
-      renderLedgerAccountTabs();
-      refreshLedgerAccountView();
+  LEDGER_ACCOUNT_TAB_CONTAINER_IDS.forEach(id => {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.innerHTML = LEDGER_ACCOUNTS.map(a =>
+      `<button type="button" data-account="${a.key}" class="${a.key === ledgerCurrentAccountKey ? 'active' : ''}">${escapeHtml(a.label)}</button>`
+    ).join('');
+    box.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.account === ledgerCurrentAccountKey) return;
+        ledgerCurrentAccountKey = btn.dataset.account;
+        ledgerCurrentMonth = null; // 換帳戶時，月份總覽改成該帳戶預設的最新月份
+        renderLedgerAccountTabs();
+        refreshLedgerAccountView();
+      });
     });
   });
 }
@@ -2642,6 +2939,7 @@ function setupForms() {
             loadList(type, viewKey);
           });
           if (type === 'inventory') loadDatalist('inventory', '品項名稱', 'inventory-name-list');
+          if (type === 'ticketType') loadDatalist('ticketType', '票種名稱', 'ticket-type-name-list');
         } else {
           msg.textContent = '❌ 送出失敗：' + res.error;
           msg.className = 'status-msg error';
@@ -2700,8 +2998,13 @@ async function init() {
   document.getElementById('costitem-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'costitem-overlay') closeCostItemsModal();
   });
+  setupAttendanceModal();
+  document.getElementById('attendance-close').addEventListener('click', closeAttendanceModal);
+  document.getElementById('attendance-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'attendance-overlay') closeAttendanceModal();
+  });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeEditModal(); closeCostItemsModal(); closeDetail(); }
+    if (e.key === 'Escape') { closeEditModal(); closeCostItemsModal(); closeAttendanceModal(); closeDetail(); }
   });
 
   document.getElementById('calendar-prev').addEventListener('click', () => {

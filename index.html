@@ -678,10 +678,21 @@
     </div>
 
     <div class="card">
+      <h2 id="ledger-list-title">逐筆記錄</h2>
+      <p class="hint" id="ledger-asof-hint"></p>
+      <p class="hint">最新的記錄在最上面，「帳戶餘額」是系統自動算好的，不能直接編輯；其他欄位可以點「編輯」修改。</p>
+      <div class="scroll-wrap" id="ledger-table-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ============ 本月收支總覽（獨立頁籤，跟逐筆記帳分開，比較好找） ============ -->
+  <section id="view-ledger-overview" class="view content-view">
+    <div class="card">
+      <div class="account-tabs" id="ledger-overview-account-tabs"></div>
+
       <h2>本月收支總覽</h2>
       <div class="month-row">
         <select id="ledger-month-select"></select>
-        <span class="hint" id="ledger-asof-hint" style="margin:0;"></span>
       </div>
       <div id="ledger-overview-content"></div>
       <div class="submit-row">
@@ -689,12 +700,6 @@
         <span class="status-msg" id="ledger-archive-msg"></span>
       </div>
       <p class="hint">存檔會把現在畫面上算好的數字（收入、支出、結餘、各帳目類別小計）寫一份到「記帳月結存檔」分頁；同一個帳戶＋月份重新存檔會覆蓋舊的，不會重複累積。</p>
-    </div>
-
-    <div class="card">
-      <h2 id="ledger-list-title">逐筆記錄</h2>
-      <p class="hint">最新的記錄在最上面，「帳戶餘額」是系統自動算好的，不能直接編輯；其他欄位可以點「編輯」修改。</p>
-      <div class="scroll-wrap" id="ledger-table-wrap"></div>
     </div>
   </section>
 
@@ -704,6 +709,122 @@
       <h2>發票待開立</h2>
       <p class="hint">列出四個帳戶裡「有勾選需要開立發票」但「還沒填開立日期」的記錄。開立之後選日期、點「標記已開立」，這筆就會從這裡消失（記錄本身還在，只是不會再提醒）。</p>
       <div class="scroll-wrap" id="invoice-pending-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ============ 票種設定（先定義有哪些票種可以賣，售票登記的「票種」會抓這裡當建議清單） ============ -->
+  <section id="view-ticket-type-setup" class="view content-view">
+    <div class="card">
+      <h2>新增票種</h2>
+      <p class="hint">先在這裡定義票種（例如「年票-會員」「年票-非會員」「季票-會員」…），之後想開新課程也可以直接加新的一列。</p>
+      <form class="grid" data-type="ticketType">
+        <label>票種名稱
+          <input type="text" name="票種名稱" placeholder="例如：年票-會員" required />
+        </label>
+        <label>金額
+          <input type="number" name="金額" min="0" step="1" required />
+        </label>
+        <label class="full">備註<span class="optional-note">（選填）</span>
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出票種</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>票種列表</h2>
+      <div class="table-wrap" data-list="ticketType"></div>
+    </div>
+  </section>
+
+  <!-- ============ 售票登記（登記學員買了哪個票種） ============ -->
+  <section id="view-ticket-sales" class="view content-view">
+    <div class="card">
+      <h2>新增售票</h2>
+      <form class="grid" data-type="ticket">
+        <label>購買日期
+          <input type="date" name="購買日期" required />
+        </label>
+        <label>票種<span class="optional-note">（打字會出現「票種設定」的建議名稱，也可以直接打新的）</span>
+          <input type="text" name="票種" list="ticket-type-name-list" required />
+          <datalist id="ticket-type-name-list"></datalist>
+        </label>
+        <label>身分
+          <select name="身分">
+            <option>會員</option>
+            <option>非會員</option>
+          </select>
+        </label>
+        <label>購買人
+          <input type="text" name="購買人" required />
+        </label>
+        <label>金額
+          <input type="number" name="金額" min="0" step="1" required />
+        </label>
+        <label>有效期限<span class="optional-note">（年票／季票才需要，單堂票可留空）</span>
+          <input type="date" name="有效期限" />
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出售票紀錄</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <p class="hint">這裡的「購買人」名字，之後在「上課紀錄」點「出席名單」會自動抓年票／季票購買人清單。</p>
+    </div>
+    <div class="card">
+      <h2>售票紀錄列表</h2>
+      <div class="table-wrap" data-list="ticket"></div>
+    </div>
+  </section>
+
+  <!-- ============ 上課紀錄（每堂課的人數、收支＋出席名單） ============ -->
+  <section id="view-class-session" class="view content-view">
+    <div class="card">
+      <h2>新增一堂課</h2>
+      <form class="grid" data-type="classSession">
+        <label>日期
+          <input type="date" name="日期" required />
+        </label>
+        <label>課程名稱
+          <input type="text" name="課程名稱" required />
+        </label>
+        <label>人數
+          <input type="number" name="人數" min="0" step="1" />
+        </label>
+        <label>收入
+          <input type="number" name="收入" min="0" step="1" />
+        </label>
+        <label>成本
+          <input type="number" name="成本" min="0" step="1" />
+        </label>
+        <label class="full">備註
+          <input type="text" name="備註" />
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出上課紀錄</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+      <p class="hint">「盈利」不用填，系統會自動算好（＝收入－成本）。</p>
+    </div>
+    <div class="card">
+      <h2>上課紀錄列表</h2>
+      <p class="hint">點每一列的「出席名單」，可以勾選這堂課年票／季票購買人誰有來、誰沒來。</p>
+      <div class="table-wrap" data-list="classSession"></div>
+    </div>
+  </section>
+
+  <!-- ============ 學員總覽（不用填資料，即時從售票登記＋上課出席名單算出來） ============ -->
+  <section id="view-student-overview" class="view content-view">
+    <div class="card">
+      <h2>學員總覽</h2>
+      <p class="hint">列出所有學員目前的票種、身分、有效期限，以及已上幾堂、出席幾次；點「查看明細」可以看每一堂課的出席狀況。這個畫面即時從「售票登記」＋「上課出席名單」算出來，不用另外填資料。</p>
+      <div class="scroll-wrap" id="student-overview-wrap"></div>
     </div>
   </section>
 
@@ -749,6 +870,24 @@
       </div>
     </form>
     <div id="costitem-list"></div>
+  </div>
+</div>
+
+<!-- ============ 出席名單彈窗（某一堂上課紀錄底下的出席狀況，勾選誰來、誰沒來） ============ -->
+<div id="attendance-overlay" class="modal-overlay">
+  <div class="modal-doc modal-doc-narrow">
+    <button id="attendance-close" class="modal-close" title="關閉">×</button>
+    <h3 id="attendance-title">出席名單</h3>
+    <p class="hint">預設列出目前還在效期內的年票／季票購買人，勾選代表「出席」，取消勾選代表「缺席」。也可以在下面手動加入其他人（例如單堂票購買人）。</p>
+    <div id="attendance-list"></div>
+    <div class="add-attendee-row">
+      <input type="text" id="attendance-add-name" placeholder="手動加入姓名（例如單堂票購買人）" />
+      <button type="button" id="attendance-add-btn" class="secondary">加入</button>
+    </div>
+    <div class="submit-row">
+      <button type="button" id="attendance-save-btn" class="primary">儲存出席名單</button>
+      <span class="status-msg" id="attendance-msg"></span>
+    </div>
   </div>
 </div>
 

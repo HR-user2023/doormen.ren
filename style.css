@@ -255,9 +255,9 @@ tr.clickable-row:hover td { background: var(--tint); }
   color: var(--primary-dark);
 }
 
-.tag.已完成, .tag.已核准, .tag.已出貨, .tag.充足, .tag.使用中, .tag.已放行 { background: #E6F4EA; color: var(--ok); }
+.tag.已完成, .tag.已核准, .tag.已出貨, .tag.充足, .tag.使用中, .tag.已放行, .tag.出席 { background: #E6F4EA; color: var(--ok); }
 .tag.待審核, .tag.待處理, .tag.進行中, .tag.未放行 { background: #FFF4E0; color: var(--warn); }
-.tag.已退回, .tag.已取消, .tag.需補貨, .tag.曠職, .tag.已到期, .tag.已退出 { background: #FBE7E5; color: var(--danger); }
+.tag.已退回, .tag.已取消, .tag.需補貨, .tag.曠職, .tag.已到期, .tag.已退出, .tag.缺席 { background: #FBE7E5; color: var(--danger); }
 
 /* 說明文字預設跟前一個元素（按鈕、下拉選單、表單…）留一點距離，不要黏在一起；
    只有緊接在標題／警示文字後面時才需要貼近（見下面的覆寫規則） */
@@ -652,6 +652,21 @@ table.cat-table td.amt.out { color: var(--danger); }
 
 .invoice-mark-row { display: flex; align-items: center; gap: 6px; }
 .invoice-mark-row input[type="date"] { padding: 5px 6px; font-size: 0.82rem; }
+
+.attendance-checklist { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; margin: 10px 0; }
+.attendance-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+.attendance-checklist input[type="checkbox"] { width: 18px; height: 18px; padding: 0; flex-shrink: 0; }
+.attendance-checklist .attendee-tag { font-size: 0.72rem; color: var(--muted); }
+
+.add-attendee-row { display: flex; gap: 6px; margin-top: 8px; }
+.add-attendee-row input { flex: 1; padding: 6px 8px; }
 
 footer {
   text-align: center;
