@@ -8,7 +8,8 @@ const CATEGORIES = [
     subs: [
       { key: 'meeting-record', label: '會議記錄' },
       { key: 'meeting-track', label: '會議追蹤' },
-      { key: 'meeting-todo-list', label: '待辦事項清單' }
+      { key: 'meeting-todo-list', label: '待辦事項清單' },
+      { key: 'meeting-calendar', label: '會議日曆' }
     ]
   },
   {
@@ -204,21 +205,93 @@ function isConfigured() {
     APPS_SCRIPT_URL.indexOf('/exec') !== -1;
 }
 
+// ---------- 通行密碼：如果管理者在「系統設定」分頁填了「系統密碼」，網頁會先要求輸入密碼才能使用 ----------
+// 沒有填密碼的話，這整套機制不會啟用（維持原本誰有連結都能用的狀態），完全是選用功能。
+const APP_PWD_KEY = 'menren_app_pwd';
+
+function getStoredPassword() {
+  try { return localStorage.getItem(APP_PWD_KEY) || ''; } catch (e) { return ''; }
+}
+function setStoredPassword(pwd) {
+  try { localStorage.setItem(APP_PWD_KEY, pwd); } catch (e) { /* 瀏覽器不支援也沒關係，只是密碼不會被記住 */ }
+}
+function clearStoredPassword() {
+  try { localStorage.removeItem(APP_PWD_KEY); } catch (e) {}
+}
+
 async function apiGet(params) {
   const url = new URL(APPS_SCRIPT_URL);
   Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
+  url.searchParams.set('pwd', getStoredPassword());
   const res = await fetch(url.toString());
-  return res.json();
+  const data = await res.json();
+  if (data && data.authError) { clearStoredPassword(); location.reload(); }
+  return data;
 }
 
 // 統一的 POST 呼叫：用 text/plain 送出，避免瀏覽器對 Apps Script 發出 CORS 預檢請求（Apps Script 無法處理 OPTIONS）
 async function apiPostRaw(bodyObj) {
+  const body = Object.assign({}, bodyObj, { pwd: getStoredPassword() });
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(bodyObj)
+    body: JSON.stringify(body)
   });
-  return res.json();
+  const data = await res.json();
+  if (data && data.authError) { clearStoredPassword(); location.reload(); }
+  return data;
+}
+
+// 密碼「檢查」用，不經過上面會自動重整的 apiGet，避免密碼答錯時卡在無限重整
+async function pingAccess(pwd) {
+  try {
+    const url = new URL(APPS_SCRIPT_URL);
+    url.searchParams.set('action', 'ping');
+    url.searchParams.set('pwd', pwd || '');
+    const res = await fetch(url.toString());
+    const data = await res.json();
+    return !!data.ok;
+  } catch (e) {
+    return true; // 連線失敗就先放行，讓後面的功能自己顯示連線錯誤，不要卡在密碼畫面出不去
+  }
+}
+
+// 確保通過密碼檢查才繼續：如果系統設定沒填密碼，pingAccess 一定會回傳 true，不會出現輸入畫面
+async function ensureAccess() {
+  if (await pingAccess(getStoredPassword())) return true;
+  return showPasswordGate();
+}
+
+function showPasswordGate() {
+  return new Promise(resolve => {
+    const gate = document.getElementById('password-gate');
+    const input = document.getElementById('password-gate-input');
+    const err = document.getElementById('password-gate-error');
+    const btn = document.getElementById('password-gate-submit');
+    gate.style.display = 'flex';
+    err.style.display = 'none';
+    input.value = '';
+    input.focus();
+
+    async function trySubmit() {
+      const pwd = input.value;
+      btn.disabled = true;
+      btn.textContent = '確認中…';
+      const ok = await pingAccess(pwd);
+      btn.disabled = false;
+      btn.textContent = '進入';
+      if (ok) {
+        setStoredPassword(pwd);
+        gate.style.display = 'none';
+        resolve(true);
+      } else {
+        err.style.display = 'block';
+        input.select();
+      }
+    }
+    btn.onclick = trySubmit;
+    input.onkeydown = (e) => { if (e.key === 'Enter') trySubmit(); };
+  });
 }
 
 async function apiPost(type, data, file) {
@@ -358,6 +431,7 @@ function showView(viewKey) {
   if (viewKey === 'meeting-record') { loadDocList('meeting'); loadLastMeetingReference(); }
   if (viewKey === 'meeting-track') loadMeetingTrackList();
   if (viewKey === 'meeting-todo-list') loadMeetingTodoListData();
+  if (viewKey === 'meeting-calendar') loadMeetingCalendar();
   if (viewKey === 'project-create') loadDocList('project');
   if (viewKey === 'project-track') loadProjectTrackList();
   if (viewKey === 'project-settlement') { populateSettlementProjectSelect(); populateExpenseItemProjectSelect(); }
@@ -1399,6 +1473,92 @@ function renderMeetingTodoList() {
   });
 }
 
+// ---------- 會議日曆：月曆檢視，顯示已登記的會議日期 ----------
+let calendarCurrentMonth = null; // 'YYYY-MM' 格式，null 代表還沒初始化，會用今天所在的月份
+let calendarMeetingsCache = [];
+
+async function loadMeetingCalendar() {
+  const grid = document.getElementById('calendar-grid');
+  if (!grid) return;
+  if (!calendarCurrentMonth) calendarCurrentMonth = todayStr().slice(0, 7);
+  grid.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const res = await apiGet({ action: 'list', type: 'meeting' });
+    calendarMeetingsCache = res.ok ? (res.data || []) : [];
+    renderCalendar();
+  } catch (err) {
+    grid.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
+    console.error(err);
+  }
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calendar-grid');
+  const label = document.getElementById('calendar-month-label');
+  const dayDetail = document.getElementById('calendar-day-detail');
+  if (!grid) return;
+
+  const [year, month] = calendarCurrentMonth.split('-').map(Number); // month: 1-12
+  label.textContent = `${year} 年 ${month} 月`;
+  dayDetail.innerHTML = '';
+
+  // 把這個月的會議依日期分組（同一天可能不只一場會議）
+  const byDate = {};
+  calendarMeetingsCache.forEach(m => {
+    const d = m['會議日期'];
+    if (d && String(d).slice(0, 7) === calendarCurrentMonth) {
+      (byDate[d] = byDate[d] || []).push(m);
+    }
+  });
+
+  const firstOfMonth = new Date(year, month - 1, 1);
+  const startWeekday = firstOfMonth.getDay(); // 0=週日
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const today = todayStr();
+  const pad = n => String(n).padStart(2, '0');
+
+  const weekHeaderHtml = ['日', '一', '二', '三', '四', '五', '六']
+    .map(w => `<div class="calendar-weekday">${w}</div>`).join('');
+
+  let cellsHtml = '';
+  for (let i = 0; i < startWeekday; i++) cellsHtml += '<div class="calendar-cell calendar-cell-empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${pad(month)}-${pad(d)}`;
+    const meetings = byDate[dateStr] || [];
+    const hasMeeting = meetings.length > 0;
+    const isToday = dateStr === today;
+    cellsHtml += `
+      <div class="calendar-cell${hasMeeting ? ' calendar-has-meeting' : ''}${isToday ? ' calendar-today' : ''}" data-date="${dateStr}">
+        <div class="calendar-date">${d}</div>
+        ${hasMeeting ? `<div class="calendar-dot" title="${escapeHtml(meetings.map(m => m['會議主題'] || '').join('、'))}">${meetings.length} 場</div>` : ''}
+      </div>`;
+  }
+
+  grid.innerHTML = `<div class="calendar-grid-inner">${weekHeaderHtml}${cellsHtml}</div>`;
+
+  grid.querySelectorAll('.calendar-has-meeting').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const dateStr = cell.dataset.date;
+      const meetings = byDate[dateStr] || [];
+      dayDetail.innerHTML = `
+        <h3>${escapeHtml(dateStr)} 的會議（${meetings.length} 場）</h3>
+        <div class="doc-list">${meetings.map(m => `
+          <div class="doc-item" data-id="${escapeHtml(m['編號'] || '')}">
+            <div class="doc-main">
+              <div class="doc-title">${escapeHtml(m['會議主題'] || '（未命名）')}</div>
+              <div class="doc-meta">主持人：${escapeHtml(m['主持人'] || '')}</div>
+            </div>
+            <div class="doc-arrow">›</div>
+          </div>
+        `).join('')}</div>
+      `;
+      dayDetail.querySelectorAll('.doc-item').forEach(el => {
+        el.addEventListener('click', () => openDetail('meeting', el.dataset.id));
+      });
+    });
+  });
+}
+
 // ---------- 共用：未完成待辦事項表格（含「未完成原因」欄位，可直接編輯儲存）----------
 // 「未完成原因」存在該筆待辦事項自己的「備註」欄位裡（會議待辦事項分頁），不管在哪裡編輯，存的都是同一筆資料。
 function renderUnfinishedTodoTable(todos) {
@@ -2092,7 +2252,7 @@ function setupMemberTierAutofill() {
 }
 
 // ---------- 初始化 ----------
-function init() {
+async function init() {
   buildHomeGrid();
   document.getElementById('back-btn').addEventListener('click', goHome);
   setupForms();
@@ -2125,10 +2285,27 @@ function init() {
     if (e.key === 'Escape') { closeEditModal(); closeCostItemsModal(); closeDetail(); }
   });
 
+  document.getElementById('calendar-prev').addEventListener('click', () => {
+    const [y, m] = calendarCurrentMonth.split('-').map(Number);
+    const prev = new Date(y, m - 2, 1); // m 是 1-12，減 2 等於上個月（js Date 月份是 0-11）
+    calendarCurrentMonth = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    renderCalendar();
+  });
+  document.getElementById('calendar-next').addEventListener('click', () => {
+    const [y, m] = calendarCurrentMonth.split('-').map(Number);
+    const next = new Date(y, m, 1); // m 是 1-12，剛好等於下個月（js Date 月份是 0-11）
+    calendarCurrentMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+    renderCalendar();
+  });
+
   if (!isConfigured()) {
     document.getElementById('config-warning').style.display = 'block';
     return;
   }
+
+  // 如果管理者有在「系統設定」填「系統密碼」，這裡會先跳出輸入畫面，答對才會繼續載入資料
+  const granted = await ensureAccess();
+  if (!granted) return;
 
   loadPartners();
   loadDatalist('inventory', '品項名稱', 'inventory-name-list');

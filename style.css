@@ -389,6 +389,64 @@ button.secondary {
 .doc-item .doc-main .doc-meta { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
 .doc-item .doc-arrow { color: var(--muted); }
 
+/* ---- 會議日曆 ---- */
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+.calendar-header h3 { margin: 0; font-size: 1rem; color: var(--primary-dark); }
+
+.calendar-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.calendar-cell {
+  min-height: 56px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  background: #FAFAFA;
+}
+
+.calendar-cell-empty { border: none; background: transparent; }
+
+.calendar-cell .calendar-date { font-size: 0.82rem; color: var(--text); }
+
+.calendar-has-meeting {
+  cursor: pointer;
+  border-color: var(--primary);
+  background: var(--tint);
+}
+.calendar-has-meeting:hover { border-color: var(--primary-dark); }
+
+.calendar-today .calendar-date { font-weight: 700; color: var(--primary-dark); }
+
+.calendar-dot {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+
+@media (max-width: 600px) {
+  .calendar-cell { min-height: 40px; padding: 3px 4px; }
+  .calendar-weekday { font-size: 0.7rem; }
+  .calendar-cell .calendar-date { font-size: 0.75rem; }
+  .calendar-dot { font-size: 0.62rem; }
+}
+
 .progress-bar {
   margin-top: 8px;
   height: 6px;

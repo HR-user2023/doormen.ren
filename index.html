@@ -158,6 +158,21 @@
     </div>
   </section>
 
+  <!-- ============ 會議日曆（月曆檢視，顯示已登記的會議日期，純顯示不用另外安排） ============ -->
+  <section id="view-meeting-calendar" class="view content-view">
+    <div class="card">
+      <h2>會議日曆</h2>
+      <p class="hint">顯示已經在「會議記錄」登記過的會議日期，點有標記的日期可以看當天有哪些會議、點進去可以看完整內容。</p>
+      <div class="calendar-header">
+        <button type="button" id="calendar-prev" class="secondary">← 上個月</button>
+        <h3 id="calendar-month-label"></h3>
+        <button type="button" id="calendar-next" class="secondary">下個月 →</button>
+      </div>
+      <div id="calendar-grid"></div>
+      <div id="calendar-day-detail"></div>
+    </div>
+  </section>
+
   <!-- ============ 專案建立（新增） ============ -->
   <section id="view-project-create" class="view content-view">
     <div class="card">
@@ -661,6 +676,21 @@
       </div>
     </form>
     <div id="costitem-list"></div>
+  </div>
+</div>
+
+<!-- ============ 通行密碼輸入畫面（只有管理者在「系統設定」填了密碼才會出現，沒填就不會看到） ============ -->
+<div id="password-gate" class="modal-overlay" style="display:none;">
+  <div class="modal-doc modal-doc-narrow">
+    <h3>請輸入通行密碼</h3>
+    <p class="hint">這個系統需要密碼才能使用，請向管理者索取密碼。</p>
+    <label class="full">密碼
+      <input type="password" id="password-gate-input" autocomplete="off" />
+    </label>
+    <p id="password-gate-error" class="hint" style="display:none; color:#C0392B;">密碼不正確，請再試一次。</p>
+    <div class="submit-row">
+      <button type="button" id="password-gate-submit" class="primary">進入</button>
+    </div>
   </div>
 </div>
 
