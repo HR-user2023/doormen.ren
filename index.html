@@ -633,6 +633,79 @@
     </div>
   </section>
 
+  <!-- ============ 記帳（市集／教育／選品店／門人，四個帳戶各自記帳，帳戶餘額網頁自動即時算好） ============ -->
+  <section id="view-ledger-entry" class="view content-view">
+    <div class="card">
+      <div class="account-tabs" id="ledger-account-tabs"></div>
+
+      <h2>新增一筆記帳</h2>
+      <p class="hint">選好上面的帳戶之後填這張表單，送出就會存到對應帳戶的分頁。「帳戶餘額」不用填，系統會自動算好。</p>
+      <form class="grid" id="ledger-form">
+        <label>日期
+          <input type="date" name="日期" required />
+        </label>
+        <label>計入月份<span class="optional-note">（選填，見下方說明）</span>
+          <input type="month" name="計入月份" />
+        </label>
+        <label>帳目類別
+          <input type="text" name="帳目類別" placeholder="例如：專案收入、人員薪資" required />
+        </label>
+        <label>場次別<span class="optional-note">（選填）</span>
+          <input type="text" name="場次別" placeholder="例如市集擺攤場次" />
+        </label>
+        <label>項目明細
+          <input type="text" name="項目明細" required />
+        </label>
+        <label>收入<span class="optional-note">（選填，跟支出擇一）</span>
+          <input type="number" name="收入" min="0" step="1" />
+        </label>
+        <label>支出<span class="optional-note">（選填，跟收入擇一）</span>
+          <input type="number" name="支出" min="0" step="1" />
+        </label>
+        <label class="full checkbox-row">
+          <input type="checkbox" name="需要開立發票" />
+          需要開立發票
+        </label>
+        <label class="full">備註<span class="optional-note">（選填）</span>
+          <input type="text" name="備註" />
+        </label>
+        <p class="hint full" style="margin:0;">「計入月份」不填的話，預設用「日期」所在的月份算進「本月收支總覽」；如果這筆要算進別的月份的損益（例如人員薪資 9 月才發放，但要算 8 月的支出），才需要另外填「計入月份」選 8 月。</p>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出記帳</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>本月收支總覽</h2>
+      <div class="month-row">
+        <select id="ledger-month-select"></select>
+        <span class="hint" id="ledger-asof-hint" style="margin:0;"></span>
+      </div>
+      <div id="ledger-overview-content"></div>
+      <div class="submit-row">
+        <button type="button" id="ledger-archive-btn" class="secondary">存檔到 Google Sheet</button>
+        <span class="status-msg" id="ledger-archive-msg"></span>
+      </div>
+      <p class="hint">存檔會把現在畫面上算好的數字（收入、支出、結餘、各帳目類別小計）寫一份到「記帳月結存檔」分頁；同一個帳戶＋月份重新存檔會覆蓋舊的，不會重複累積。</p>
+    </div>
+
+    <div class="card">
+      <h2 id="ledger-list-title">逐筆記錄</h2>
+      <p class="hint">最新的記錄在最上面，「帳戶餘額」是系統自動算好的，不能直接編輯；其他欄位可以點「編輯」修改。</p>
+      <div class="scroll-wrap" id="ledger-table-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ============ 發票待開立（獨立頁籤，合併四個帳戶還沒開立發票的記錄） ============ -->
+  <section id="view-ledger-invoice" class="view content-view">
+    <div class="card">
+      <h2>發票待開立</h2>
+      <p class="hint">列出四個帳戶裡「有勾選需要開立發票」但「還沒填開立日期」的記錄。開立之後選日期、點「標記已開立」，這筆就會從這裡消失（記錄本身還在，只是不會再提醒）。</p>
+      <div class="scroll-wrap" id="invoice-pending-wrap"></div>
+    </div>
+  </section>
 
 </main>
 

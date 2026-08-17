@@ -48,8 +48,29 @@ const CATEGORIES = [
       { key: 'member-create', label: '會員建立' },
       { key: 'member-list', label: '會員名單' }
     ]
+  },
+  {
+    key: 'ledger', title: '記帳', desc: '四帳戶記帳、發票追蹤',
+    subs: [
+      { key: 'ledger-entry', label: '記帳' },
+      { key: 'ledger-invoice', label: '發票待開立' }
+    ]
   }
 ];
+
+// ---------- 記帳：四個銀行帳戶各自一張分頁，欄位完全一致 ----------
+const LEDGER_ACCOUNTS = [
+  { key: 'market', label: '市集', type: 'ledgerMarket' },
+  { key: 'edu', label: '教育', type: 'ledgerEdu' },
+  { key: 'shop', label: '選品店', type: 'ledgerShop' },
+  { key: 'door', label: '門人', type: 'ledgerDoor' }
+];
+const LEDGER_TYPE_BY_KEY = {};
+LEDGER_ACCOUNTS.forEach(a => { LEDGER_TYPE_BY_KEY[a.key] = a.type; });
+let ledgerCurrentAccountKey = LEDGER_ACCOUNTS[0].key;
+let ledgerCurrentMonth = null; // 'YYYY-MM'，null 代表還沒初始化，會用今天所在的月份
+let ledgerOpeningCache = {}; // { 帳戶label: { 起始日期, 起始餘額 } }
+let ledgerRowsCache = {}; // { 帳戶key: [rows] }，記帳頁籤自己的快取，跟通用的 loadList 分開
 
 // 每個「頁面 key」對應要讀取哪一種資料（給列表用；會議記錄／會議追蹤／專案建立／專案追蹤改用歷史文件清單，不用這個表）
 const VIEW_DATA_TYPE = {
@@ -197,6 +218,25 @@ const FIELD_META = {
   }
 };
 
+// 記帳：四個帳戶（市集／教育／選品店／門人）欄位完全一樣，共用同一份設定，「編輯」彈窗才看得到「發票開立日期」欄位
+const LEDGER_FIELD_META = {
+  日期: { type: 'date' },
+  計入月份: { type: 'month', optional: true },
+  帳目類別: { type: 'text' },
+  場次別: { type: 'text', optional: true },
+  項目明細: { type: 'text' },
+  收入: { type: 'number', optional: true },
+  支出: { type: 'number', optional: true },
+  需要開立發票: { type: 'checkbox', optional: true },
+  發票開立日期: { type: 'date', optional: true },
+  備註: { type: 'text', optional: true }
+};
+LEDGER_ACCOUNTS.forEach(a => {
+  FIELD_META[a.type] = LEDGER_FIELD_META;
+  TYPE_LABEL[a.type] = a.label + '記帳';
+  COLUMN_ORDER[a.type] = Object.keys(LEDGER_FIELD_META);
+});
+
 let partnerNamesCache = [];
 
 function isConfigured() {
@@ -309,6 +349,12 @@ function escapeHtml(str) {
 function tagHtml(value) {
   if (!value) return '';
   return `<span class="tag ${escapeHtml(String(value))}">${escapeHtml(String(value))}</span>`;
+}
+
+// 判斷一個欄位值是不是「勾選／TRUE」：Google Sheet 有時候會存成真的布林值 true，
+// 有時候是文字 'TRUE'／'true'，這裡統一判斷，避免漏判
+function isTruthyBool(v) {
+  return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1';
 }
 
 // ---------- 手機畫面：確保寬表格不會把整個頁面撐開，改成表格自己左右滑動 ----------
@@ -436,6 +482,8 @@ function showView(viewKey) {
   if (viewKey === 'project-track') loadProjectTrackList();
   if (viewKey === 'project-settlement') { populateSettlementProjectSelect(); populateExpenseItemProjectSelect(); }
   if (viewKey === 'project-settlement-summary') loadSettlementSummaryData();
+  if (viewKey === 'ledger-entry') loadLedgerView();
+  if (viewKey === 'ledger-invoice') loadInvoicePendingList();
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -584,6 +632,9 @@ function openEditModal(type, row, onSaved) {
     if (m.type === 'month') {
       return `<label>${label}<input type="month" name="${escapeHtml(field)}" value="${escapeHtml(rawVal)}" /></label>`;
     }
+    if (m.type === 'checkbox') {
+      return `<label class="full checkbox-row"><input type="checkbox" name="${escapeHtml(field)}" ${isTruthyBool(rawVal) ? 'checked' : ''} />${label}</label>`;
+    }
     return `<label>${label}<input type="text" name="${escapeHtml(field)}" value="${escapeHtml(rawVal)}" /></label>`;
   }).join('') + `<div class="submit-row"><button type="submit" class="primary">儲存修改</button><span class="status-msg"></span></div>`;
 
@@ -601,6 +652,8 @@ function openEditModal(type, row, onSaved) {
     const msg = form.querySelector('.status-msg');
     const data = {};
     new FormData(form).forEach((value, key) => { data[key] = value; });
+    // 勾選框沒勾的話 FormData 不會帶到這個欄位，這裡另外明確補上 TRUE/FALSE，避免「取消勾選」存不進去
+    form.querySelectorAll('input[type="checkbox"]').forEach(cb => { data[cb.name] = cb.checked ? 'TRUE' : 'FALSE'; });
 
     btn.disabled = true;
     msg.textContent = '儲存中…';
@@ -2192,8 +2245,374 @@ function setupExpenseForm() {
   });
 }
 
+// ---------- 記帳：市集／教育／選品店／門人四個帳戶，同一個入口切換帳戶，各自存到自己的分頁 ----------
+let ledgerFormSetup = false;
+
+function renderLedgerAccountTabs() {
+  const box = document.getElementById('ledger-account-tabs');
+  if (!box) return;
+  box.innerHTML = LEDGER_ACCOUNTS.map(a =>
+    `<button type="button" data-account="${a.key}" class="${a.key === ledgerCurrentAccountKey ? 'active' : ''}">${escapeHtml(a.label)}</button>`
+  ).join('');
+  box.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.account === ledgerCurrentAccountKey) return;
+      ledgerCurrentAccountKey = btn.dataset.account;
+      ledgerCurrentMonth = null; // 換帳戶時，月份總覽改成該帳戶預設的最新月份
+      renderLedgerAccountTabs();
+      refreshLedgerAccountView();
+    });
+  });
+}
+
+async function loadLedgerOpeningBalances() {
+  if (Object.keys(ledgerOpeningCache).length > 0) return;
+  try {
+    const res = await apiGet({ action: 'ledgerOpening' });
+    if (res.ok) {
+      (res.data || []).forEach(r => {
+        ledgerOpeningCache[r['帳戶']] = { 起始日期: r['起始日期'], 起始餘額: Number(r['起始餘額']) || 0 };
+      });
+    }
+  } catch (err) {
+    console.error('讀取記帳起始餘額失敗', err);
+  }
+}
+
+async function fetchLedgerRows(accountKey) {
+  const type = LEDGER_TYPE_BY_KEY[accountKey];
+  const res = await apiGet({ action: 'list', type });
+  const rows = res.ok ? (res.data || []) : [];
+  ledgerRowsCache[accountKey] = rows;
+  return rows;
+}
+
+// 依日期（同日再依編號）排序後，從起始餘額往下累加，回傳每一筆附上 _balance（累加後的帳戶餘額）
+function computeLedgerRunningBalances(rows, openingBalance) {
+  const sorted = [...rows].sort((a, b) => {
+    const d = String(a['日期'] || '').localeCompare(String(b['日期'] || ''));
+    if (d !== 0) return d;
+    return String(a['編號'] || '').localeCompare(String(b['編號'] || ''));
+  });
+  let running = openingBalance;
+  return sorted.map(r => {
+    running += (Number(r['收入']) || 0) - (Number(r['支出']) || 0);
+    return Object.assign({}, r, { _balance: running });
+  });
+}
+
+async function loadLedgerView() {
+  if (!ledgerFormSetup) { setupLedgerForm(); setupLedgerArchiveButton(); ledgerFormSetup = true; }
+  renderLedgerAccountTabs();
+  await loadLedgerOpeningBalances();
+  await refreshLedgerAccountView();
+}
+
+// 「存檔到 Google Sheet」：把目前畫面上算好的本月收支總覽（含各帳目類別小計）寫一份到「記帳月結存檔」分頁
+function setupLedgerArchiveButton() {
+  const btn = document.getElementById('ledger-archive-btn');
+  const msg = document.getElementById('ledger-archive-msg');
+  btn.addEventListener('click', async () => {
+    if (!ledgerLastOverview) return;
+    btn.disabled = true;
+    msg.textContent = '存檔中…';
+    msg.className = 'status-msg';
+    try {
+      const res = await apiPostRaw({ action: 'archiveLedgerMonth', account: ledgerLastOverview.account, month: ledgerLastOverview.month, items: ledgerLastOverview.items });
+      if (res.ok) {
+        msg.textContent = '✅ 已存檔';
+        msg.className = 'status-msg ok';
+      } else {
+        msg.textContent = '❌ 存檔失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    } catch (err) {
+      msg.textContent = '❌ 存檔失敗，請確認網路連線';
+      msg.className = 'status-msg error';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+async function refreshLedgerAccountView() {
+  const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
+  document.getElementById('ledger-list-title').textContent = account.label + '帳戶　逐筆記錄';
+
+  const opening = ledgerOpeningCache[account.label];
+  const asofHint = document.getElementById('ledger-asof-hint');
+  asofHint.textContent = opening ? `帳戶餘額以 ${opening.起始日期} 的餘額（${Number(opening.起始餘額).toLocaleString()}）為基準往下累加` : '';
+
+  const wrap = document.getElementById('ledger-table-wrap');
+  wrap.innerHTML = '<p class="hint">載入中…</p>';
+
+  const rows = await fetchLedgerRows(ledgerCurrentAccountKey);
+  const withBalance = computeLedgerRunningBalances(rows, opening ? opening.起始餘額 : 0);
+
+  renderLedgerTable(withBalance);
+  populateLedgerMonthSelect(withBalance);
+}
+
+function renderLedgerTable(withBalance) {
+  const wrap = document.getElementById('ledger-table-wrap');
+  if (withBalance.length === 0) {
+    wrap.innerHTML = '<p class="hint">這個帳戶還沒有任何記帳記錄。</p>';
+    return;
+  }
+  const newestFirst = [...withBalance].reverse();
+  const rowsHtml = newestFirst.map(r => `
+    <tr>
+      <td>${escapeHtml(r['日期'] || '')}</td>
+      <td>${escapeHtml(r['帳目類別'] || '')}</td>
+      <td>${escapeHtml(r['項目明細'] || '')}</td>
+      <td class="amt in">${r['收入'] ? Number(r['收入']).toLocaleString() : '-'}</td>
+      <td class="amt out">${r['支出'] ? Number(r['支出']).toLocaleString() : '-'}</td>
+      <td class="amt">${Number(r._balance).toLocaleString()}</td>
+      <td>${isTruthyBool(r['需要開立發票']) ? (r['發票開立日期'] ? '已開立' : '待開立') : '-'}</td>
+      <td><button type="button" class="btn-edit" data-id="${escapeHtml(r['編號'])}">編輯</button></td>
+    </tr>
+  `).join('');
+
+  wrap.innerHTML = `
+    <table class="cat-table">
+      <thead>
+        <tr><th>日期</th><th>帳目類別</th><th>項目明細</th><th>收入</th><th>支出</th><th>帳戶餘額</th><th>發票</th><th>操作</th></tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `;
+  enhanceScrollableTables(wrap);
+
+  wrap.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = withBalance.find(r => String(r['編號']) === btn.dataset.id);
+      if (!row) return;
+      openEditModal(LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], row, refreshLedgerAccountView);
+    });
+  });
+}
+
+// 「計入月份」有填就用那個，沒填就用「日期」所在的月份 —— 讓薪資這種要算進別月份損益的記錄可以正確歸類
+function ledgerEffectiveMonth(r) {
+  return r['計入月份'] || String(r['日期'] || '').slice(0, 7);
+}
+
+function populateLedgerMonthSelect(withBalance) {
+  const sel = document.getElementById('ledger-month-select');
+  const months = [...new Set(withBalance.map(ledgerEffectiveMonth).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a));
+
+  if (months.length === 0) {
+    sel.innerHTML = '';
+    document.getElementById('ledger-overview-content').innerHTML = '<p class="hint">這個帳戶還沒有資料，無法顯示本月收支總覽。</p>';
+    return;
+  }
+  if (!ledgerCurrentMonth || months.indexOf(ledgerCurrentMonth) === -1) {
+    ledgerCurrentMonth = months[0];
+  }
+  sel.innerHTML = months.map(m => `<option value="${m}" ${m === ledgerCurrentMonth ? 'selected' : ''}>${m.replace('-', ' 年 ')} 月</option>`).join('');
+  sel.onchange = () => {
+    ledgerCurrentMonth = sel.value;
+    renderLedgerOverview(withBalance, ledgerCurrentMonth);
+  };
+  renderLedgerOverview(withBalance, ledgerCurrentMonth);
+}
+
+// 「本月收支總覽」最後一次算好的結果，給「存檔到 Google Sheet」按鈕用，不用重新算一次
+let ledgerLastOverview = null;
+
+function renderLedgerOverview(withBalance, month) {
+  const box = document.getElementById('ledger-overview-content');
+  const monthRows = withBalance.filter(r => ledgerEffectiveMonth(r) === month && r['帳目類別'] !== '前月餘額');
+
+  let totalIn = 0, totalOut = 0;
+  const cats = {};
+  monthRows.forEach(r => {
+    const inc = Number(r['收入']) || 0;
+    const out = Number(r['支出']) || 0;
+    totalIn += inc;
+    totalOut += out;
+    const cat = r['帳目類別'] || '（未分類）';
+    if (!cats[cat]) cats[cat] = { in: 0, out: 0 };
+    cats[cat].in += inc;
+    cats[cat].out += out;
+  });
+
+  // 每個支出類別佔當月總收入的比例（例如人員薪資佔收入 7.2%），沒有收入的月份就顯示 - ，不會除以 0
+  const pctOfIncome = out => (totalIn > 0 && out > 0) ? (out / totalIn * 100).toFixed(1) + '%' : '-';
+
+  const sortedCats = Object.keys(cats).sort((a, b) => (cats[b].in + cats[b].out) - (cats[a].in + cats[a].out));
+  const catRows = sortedCats.map(cat => `
+      <tr>
+        <td>${escapeHtml(cat)}</td>
+        <td class="amt in">${cats[cat].in ? cats[cat].in.toLocaleString() : '-'}</td>
+        <td class="amt out">${cats[cat].out ? cats[cat].out.toLocaleString() : '-'}</td>
+        <td class="amt">${pctOfIncome(cats[cat].out)}</td>
+      </tr>
+    `).join('');
+
+  box.innerHTML = `
+    <div class="ledger-big-numbers">
+      <div class="box in"><div class="label">收入</div><div class="value">${totalIn.toLocaleString()}</div></div>
+      <div class="box out"><div class="label">支出</div><div class="value">${totalOut.toLocaleString()}</div></div>
+      <div class="box balance"><div class="label">結餘（收入－支出）</div><div class="value">${(totalIn - totalOut).toLocaleString()}</div></div>
+    </div>
+    ${catRows ? `
+      <details class="cat-detail" open>
+        <summary>各帳目類別小計（點可收合）</summary>
+        <table class="cat-table">
+          <thead><tr><th>帳目類別</th><th>收入</th><th>支出</th><th>支出佔收入%</th></tr></thead>
+          <tbody>${catRows}</tbody>
+        </table>
+        <p class="hint">「支出佔收入%」是這個類別的支出，佔當月總收入的比例，方便看哪個項目花費比重比較大；當月沒有收入的話會顯示「-」。</p>
+      </details>
+    ` : '<p class="hint">這個月沒有記帳記錄。</p>'}
+  `;
+
+  const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
+  ledgerLastOverview = {
+    account: account.label,
+    month,
+    items: [
+      { '項目': '合計', '收入': totalIn, '支出': totalOut },
+      ...sortedCats.map(cat => ({ '項目': cat, '收入': cats[cat].in, '支出': cats[cat].out }))
+    ]
+  };
+  const archiveMsg = document.getElementById('ledger-archive-msg');
+  if (archiveMsg) { archiveMsg.textContent = ''; archiveMsg.className = 'status-msg'; }
+}
+
+function setupLedgerForm() {
+  const form = document.getElementById('ledger-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const msg = form.querySelector('.status-msg');
+    const data = {};
+    new FormData(form).forEach((value, key) => { data[key] = value; });
+    form.querySelectorAll('input[type="checkbox"]').forEach(cb => { data[cb.name] = cb.checked ? 'TRUE' : 'FALSE'; });
+
+    btn.disabled = true;
+    msg.textContent = '送出中…';
+    msg.className = 'status-msg';
+
+    try {
+      const type = LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey];
+      const res = await apiPost(type, data);
+      if (res.ok) {
+        msg.textContent = '✅ 已送出（編號：' + res.id + '）';
+        msg.className = 'status-msg ok';
+        form.reset();
+        await refreshLedgerAccountView();
+      } else {
+        msg.textContent = '❌ 送出失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    } catch (err) {
+      msg.textContent = '❌ 送出失敗，請確認網路連線';
+      msg.className = 'status-msg error';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+// ---------- 發票待開立：合併四個帳戶，只列出「需要開立發票」但「還沒填開立日期」的記錄 ----------
+async function loadInvoicePendingList() {
+  const wrap = document.getElementById('invoice-pending-wrap');
+  wrap.innerHTML = '<p class="hint">載入中…</p>';
+
+  try {
+    const results = await Promise.all(LEDGER_ACCOUNTS.map(a => apiGet({ action: 'list', type: a.type })));
+    const pending = [];
+    results.forEach((res, i) => {
+      const account = LEDGER_ACCOUNTS[i];
+      if (!res.ok) return;
+      (res.data || []).forEach(r => {
+        if (isTruthyBool(r['需要開立發票']) && !r['發票開立日期']) {
+          pending.push(Object.assign({ _account: account }, r));
+        }
+      });
+    });
+    pending.sort((a, b) => String(b['日期'] || '').localeCompare(String(a['日期'] || '')));
+    renderInvoicePendingList(pending);
+  } catch (err) {
+    wrap.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
+    console.error(err);
+  }
+}
+
+function renderInvoicePendingList(pending) {
+  const wrap = document.getElementById('invoice-pending-wrap');
+  if (pending.length === 0) {
+    wrap.innerHTML = '<p class="hint">目前沒有需要開立發票的記錄。</p>';
+    return;
+  }
+  const today = todayStr();
+  const rowsHtml = pending.map((r, i) => {
+    const amount = Number(r['收入']) || Number(r['支出']) || 0;
+    return `
+      <tr>
+        <td>${escapeHtml(r._account.label)}</td>
+        <td>${escapeHtml(r['日期'] || '')}</td>
+        <td>${escapeHtml(r['項目明細'] || '')}</td>
+        <td class="amt">${amount ? amount.toLocaleString() : '-'}</td>
+        <td><span class="badge pending">未開立</span></td>
+        <td>
+          <div class="invoice-mark-row">
+            <input type="date" class="invoice-date-input" value="${today}" data-idx="${i}" />
+            <button type="button" class="btn-edit mark-issued-btn" data-idx="${i}">標記已開立</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table class="cat-table">
+      <thead><tr><th>帳戶</th><th>記帳日期</th><th>項目</th><th>金額</th><th>發票開立日期</th><th>操作</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `;
+  enhanceScrollableTables(wrap);
+
+  wrap.querySelectorAll('.mark-issued-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = Number(btn.dataset.idx);
+      const row = pending[idx];
+      const dateInput = wrap.querySelector(`.invoice-date-input[data-idx="${idx}"]`);
+      const dateVal = dateInput.value;
+      if (!dateVal) { alert('請先選擇發票開立日期'); return; }
+      btn.disabled = true;
+      btn.textContent = '處理中…';
+      try {
+        const res = await apiPostRaw({
+          action: 'update',
+          type: row._account.type,
+          id: row['編號'],
+          data: { '發票開立日期': dateVal }
+        });
+        if (res.ok) {
+          await loadInvoicePendingList();
+        } else {
+          alert('標記失敗：' + res.error);
+          btn.disabled = false;
+          btn.textContent = '標記已開立';
+        }
+      } catch (err) {
+        alert('標記失敗，請確認網路連線');
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = '標記已開立';
+      }
+    });
+  });
+}
+
 // ---------- 一般表單送出（會議／專案／請款表單走各自專屬邏輯，這裡處理其餘的） ----------
-const CUSTOM_FORM_IDS = new Set(['meeting-form', 'project-form', 'expense-form']);
+const CUSTOM_FORM_IDS = new Set(['meeting-form', 'project-form', 'expense-form', 'ledger-form']);
 
 function setupForms() {
   document.querySelectorAll('form[data-type]').forEach(form => {

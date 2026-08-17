@@ -544,6 +544,115 @@ button.secondary {
 .doc-header-actions { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .doc-todo-table .btn-edit { white-space: nowrap; }
 
+/* ---- 記帳（帳戶切換、勾選發票、本月收支總覽、發票待開立） ---- */
+.account-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.account-tabs button {
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: var(--muted);
+}
+.account-tabs button.active {
+  background: var(--primary-dark);
+  color: #fff;
+  border-color: var(--primary-dark);
+}
+
+.optional-note { color: #B3B3B3; font-size: 0.75rem; }
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+.checkbox-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
+.month-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ledger-big-numbers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.ledger-big-numbers .box {
+  background: var(--tint);
+  border-radius: 10px;
+  padding: 12px 10px;
+  text-align: center;
+}
+.ledger-big-numbers .label { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+.ledger-big-numbers .value { font-size: 1.1rem; font-weight: 700; }
+.ledger-big-numbers .in .value { color: var(--ok); }
+.ledger-big-numbers .out .value { color: var(--danger); }
+.ledger-big-numbers .balance .value { color: var(--primary-dark); }
+
+details.cat-detail {
+  margin-top: 14px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+}
+details.cat-detail > summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--primary-dark);
+  font-weight: 600;
+  list-style: none;
+}
+details.cat-detail > summary::-webkit-details-marker { display: none; }
+details.cat-detail > summary::before { content: "▸ "; }
+details.cat-detail[open] > summary::before { content: "▾ "; }
+
+table.cat-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.86rem; }
+table.cat-table th, table.cat-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 7px 4px;
+  text-align: left;
+}
+table.cat-table th { color: var(--muted); font-weight: 600; font-size: 0.78rem; }
+table.cat-table td.amt { text-align: right; font-variant-numeric: tabular-nums; }
+table.cat-table td.amt.in { color: var(--ok); }
+table.cat-table td.amt.out { color: var(--danger); }
+
+.badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; }
+.badge.pending { background: #FBE8CC; color: var(--warn); }
+.badge.done { background: #DCEEDC; color: var(--ok); }
+
+.count-tag {
+  display: inline-block;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.invoice-mark-row { display: flex; align-items: center; gap: 6px; }
+.invoice-mark-row input[type="date"] { padding: 5px 6px; font-size: 0.82rem; }
+
 footer {
   text-align: center;
   color: var(--muted);
@@ -557,4 +666,5 @@ footer {
   .card { padding: 14px; }
   .modal-overlay { padding: 14px 8px; }
   .modal-doc { padding: 20px 16px; }
+  .ledger-big-numbers { grid-template-columns: 1fr; }
 }
