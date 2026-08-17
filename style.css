@@ -684,6 +684,62 @@ table.cat-table td.amt.out { color: var(--danger); }
 .teacher-checklist input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
 .teacher-checklist input[type="checkbox"]:disabled + span { color: var(--muted); }
 
+/* ---- 售票登記：購買方式切換（單人／多人）與多人購買動態列 ---- */
+.toggle-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.toggle-row button {
+  flex: 1;
+  padding: 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.toggle-row button.active { background: var(--primary-dark); color: #fff; border-color: var(--primary-dark); }
+
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+
+.multi-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #fafafa;
+  position: relative;
+}
+.multi-row .row-title { font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+.multi-row .remove-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: none;
+  background: #FBE7E5;
+  color: var(--danger);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.multi-row label { margin-top: 8px; }
+.multi-row .field-grid { margin-top: 0; }
+
+/* ---- 課程設定彈窗：授課老師區塊跟票種設定區塊的分隔標題 ---- */
+.modal-subhead {
+  margin: 20px 0 6px;
+  font-size: 0.95rem;
+  color: var(--primary-dark);
+  border-top: 1px dashed var(--border);
+  padding-top: 16px;
+}
+.modal-doc-narrow h3 + .modal-subhead { border-top: none; padding-top: 0; margin-top: 0; }
+
+@media (max-width: 600px) {
+  .field-grid { grid-template-columns: 1fr; }
+}
+
 footer {
   text-align: center;
   color: var(--muted);

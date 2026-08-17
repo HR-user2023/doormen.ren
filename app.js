@@ -108,11 +108,11 @@ const COLUMN_ORDER = {
   member: ['會員名稱', '聯絡人', '電話', 'Email', '會員等級', '年費', '押金', '銀行', '帳號', '城市', '所屬區域',
            '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註'],
   ticketType: ['課程名稱', '票種', '堂數', '會員金額', '非會員金額', '可指定老師人數', '備註'],
-  ticket: ['購買日期', '課程項目', '票種', '身分', '購買人', '金額', '購買堂數', '指定老師', '備註'],
+  ticket: ['購買日期', '課程項目', '票種', '身分', '購買類型', '所屬店家', '購買人', '聯絡電話', 'LINE ID', '金額', '購買堂數', '指定老師', '備註'],
   classSession: ['課程項目', '日期', '師資', '課程名稱', '人數', '收入', '成本', '盈利', '備註']
 };
 
-const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態', '票種', '身分', '出席狀態', '課程項目']);
+const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態', '票種', '身分', '出席狀態', '課程項目', '購買類型']);
 const LINK_COLUMNS = new Set(['收據附件']);
 
 // 明細列表用：點一列可以打開來源文件的詳細頁（目前所有明細列表都已改成卡片式，暫時沒有用到，保留機制供之後使用）
@@ -123,7 +123,7 @@ const TYPE_LABEL = {
   meeting: '會議記錄', meetingTopic: '會議議題', meetingTodo: '待辦事項', project: '專案', projectItem: '工作事項',
   projectSettlement: '分潤結算', projectExpenseItem: '支出項目', expense: '請款紀錄',
   attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料',
-  course: '課程', ticketType: '票種設定', ticket: '售票紀錄', classSession: '上課紀錄'
+  course: '課程', instructor: '講師', ticketType: '票種設定', ticket: '售票紀錄', classSession: '上課紀錄'
 };
 
 // type: text / textarea / number / date / month / select / partner / member / account
@@ -250,7 +250,11 @@ const FIELD_META = {
     課程項目: { type: 'text' },
     票種: { type: 'text' },
     身分: { type: 'select', options: ['會員', '非會員'] },
+    購買類型: { type: 'select', options: ['店家購票', '個人購票'] },
+    所屬店家: { type: 'text', optional: true },
     購買人: { type: 'text' },
+    聯絡電話: { type: 'text', optional: true },
+    'LINE ID': { type: 'text', optional: true },
     金額: { type: 'number' },
     購買堂數: { type: 'number' },
     指定老師: { type: 'text', optional: true },
@@ -259,7 +263,7 @@ const FIELD_META = {
   classSession: {
     課程項目: { type: 'text' },
     日期: { type: 'date' },
-    師資: { type: 'partner' },
+    師資: { type: 'instructor' },
     課程名稱: { type: 'text' },
     人數: { type: 'number', optional: true },
     收入: { type: 'number', optional: true },
@@ -399,6 +403,11 @@ function escapeHtml(str) {
 function tagHtml(value) {
   if (!value) return '';
   return `<span class="tag ${escapeHtml(String(value))}">${escapeHtml(String(value))}</span>`;
+}
+
+// 多位老師／多個名字存成頓號分開的一段文字，這裡統一解析成陣列（頓號、逗號都算分隔符號）
+function splitNames(str) {
+  return String(str || '').split(/[、,，]/).map(s => s.trim()).filter(Boolean);
 }
 
 // 判斷一個欄位值是不是「勾選／TRUE」：Google Sheet 有時候會存成真的布林值 true，
@@ -580,6 +589,25 @@ async function loadPartners() {
   }
 }
 
+// ---------- 講師名單：跟「夥伴名單」完全分開，是「課程」設定授課老師專用的名單 ----------
+let instructorNamesCache = [];
+
+function fillInstructorSelect(sel) {
+  sel.innerHTML = '<option value="">請選擇老師</option>' +
+    instructorNamesCache.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+}
+
+async function loadInstructors() {
+  try {
+    const res = await apiGet({ action: 'instructors' });
+    if (!res.ok) return;
+    instructorNamesCache = res.data || [];
+    document.querySelectorAll('select.instructor-select').forEach(fillInstructorSelect);
+  } catch (err) {
+    console.error('讀取講師名單失敗', err);
+  }
+}
+
 // ---------- 品項/專案名稱建議清單 ----------
 async function loadDatalist(type, field, elementId) {
   try {
@@ -593,7 +621,9 @@ async function loadDatalist(type, field, elementId) {
   }
 }
 
-// ---------- 課程列表（課程只有名稱，票種在點卡片後開的彈窗裡管理） ----------
+// ---------- 課程列表（課程只有名稱，授課老師跟票種都在點卡片後開的彈窗裡管理） ----------
+let courseListCache = [];
+
 async function loadCourseList() {
   const wrap = document.getElementById('course-list-wrap');
   if (!wrap) return;
@@ -607,14 +637,14 @@ async function loadCourseList() {
       wrap.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(courseRes.error || '')}</p>`;
       return;
     }
-    const courses = courseRes.data || [];
+    courseListCache = courseRes.data || [];
     const ticketTypes = ticketTypeRes.ok ? (ticketTypeRes.data || []) : [];
-    if (courses.length === 0) {
+    if (courseListCache.length === 0) {
       wrap.innerHTML = '<p class="hint">目前還沒有課程，請先在上面新增。</p>';
       return;
     }
 
-    wrap.innerHTML = courses.map(c => {
+    wrap.innerHTML = courseListCache.map(c => {
       const name = c['課程名稱'] || '';
       const types = ticketTypes.filter(t => (t['課程名稱'] || '') === name);
       const tagsHtml = types.length
@@ -623,11 +653,14 @@ async function loadCourseList() {
             return `<span class="tag">${escapeHtml(t['票種'] || '')}${escapeHtml(String(t['堂數'] || ''))}堂・${limitText}</span>`;
           }).join(' ')
         : '尚未設定票種';
+      const teacherNames = splitNames(c['授課老師']);
+      const teacherText = teacherNames.length ? '授課老師：' + teacherNames.join('、') : '尚未設定授課老師';
       return `
-        <div class="doc-item" data-id="${escapeHtml(c['編號'] || '')}" data-name="${escapeHtml(name)}">
+        <div class="doc-item" data-id="${escapeHtml(c['編號'] || '')}">
           <div class="doc-main">
             <div class="doc-title">${escapeHtml(name || '（未命名）')}</div>
             <div class="doc-meta">${tagsHtml}</div>
+            <div class="doc-meta">${escapeHtml(teacherText)}</div>
           </div>
           <div class="doc-arrow">›</div>
         </div>
@@ -635,7 +668,10 @@ async function loadCourseList() {
     }).join('');
 
     wrap.querySelectorAll('.doc-item').forEach(el => {
-      el.addEventListener('click', () => openCourseDetail(el.dataset.id, el.dataset.name));
+      el.addEventListener('click', () => {
+        const course = courseListCache.find(c => String(c['編號']) === el.dataset.id);
+        if (course) openCourseDetail(course);
+      });
     });
   } catch (err) {
     wrap.innerHTML = '<p class="hint">讀取失敗，請確認網路連線。</p>';
@@ -643,12 +679,21 @@ async function loadCourseList() {
   }
 }
 
-// ---------- 票種設定彈窗：某個課程底下的票種方案（年票／季票／單堂票，各自堂數與價格） ----------
-let ticketTypeCurrentCourse = '';
+// ---------- 課程設定彈窗：授課老師（講師名單）＋這個課程底下的票種方案（年票／季票／單堂票，各自堂數與價格） ----------
+let courseDetailCurrent = null; // 目前開啟中的課程完整資料列
 
-async function openCourseDetail(courseId, courseName) {
-  ticketTypeCurrentCourse = courseName || '';
-  document.getElementById('tickettype-title').textContent = '票種設定－' + (courseName || '');
+async function openCourseDetail(course) {
+  courseDetailCurrent = course;
+  const courseId = course['編號'];
+  const courseName = course['課程名稱'] || '';
+  document.getElementById('tickettype-title').textContent = '課程設定－' + courseName;
+
+  const teacherMsg = document.getElementById('course-teacher-msg');
+  teacherMsg.textContent = '';
+  teacherMsg.className = 'status-msg';
+  document.getElementById('course-new-teacher-input').value = '';
+  renderCourseTeacherBox(splitNames(course['授課老師']));
+
   const addForm = document.getElementById('tickettype-add-form');
   addForm.reset();
   const msg = addForm.querySelector('.status-msg');
@@ -688,6 +733,79 @@ async function openCourseDetail(courseId, courseName) {
 
   document.getElementById('tickettype-overlay').classList.add('active');
   await renderTicketTypeList(courseName);
+}
+
+// 授課老師勾選清單（來源是講師名單，不是夥伴名單）
+function renderCourseTeacherBox(selectedNames) {
+  const box = document.getElementById('course-teacher-box');
+  if (!box) return;
+  const selectedSet = new Set(selectedNames || []);
+  if (instructorNamesCache.length === 0) {
+    box.innerHTML = '<p class="hint">目前還沒有講師，請在下面輸入名字新增。</p>';
+    return;
+  }
+  box.innerHTML = instructorNamesCache.map(n => `
+    <label>
+      <input type="checkbox" class="course-teacher-cb" value="${escapeHtml(n)}" ${selectedSet.has(n) ? 'checked' : ''} />
+      <span>${escapeHtml(n)}</span>
+    </label>
+  `).join('');
+}
+
+// 直接在課程設定彈窗裡輸入名字，新增一位講師（存到「講師名單」，跟夥伴名單無關），新增後自動勾選
+async function addCourseTeacherInline() {
+  const input = document.getElementById('course-new-teacher-input');
+  const name = input.value.trim();
+  if (!name) return;
+  const msg = document.getElementById('course-teacher-msg');
+  try {
+    const res = await apiPost('instructor', { 姓名: name });
+    if (res.ok) {
+      if (!instructorNamesCache.includes(name)) instructorNamesCache.push(name);
+      const currentlyChecked = Array.from(document.querySelectorAll('#course-teacher-box .course-teacher-cb:checked')).map(cb => cb.value);
+      currentlyChecked.push(name);
+      renderCourseTeacherBox(currentlyChecked);
+      input.value = '';
+      msg.textContent = '✅ 已新增講師「' + name + '」，記得按下面「儲存授課老師」套用到這個課程';
+      msg.className = 'status-msg ok';
+    } else {
+      msg.textContent = '❌ 新增講師失敗：' + res.error;
+      msg.className = 'status-msg error';
+    }
+  } catch (err) {
+    msg.textContent = '❌ 新增講師失敗，請確認網路連線';
+    msg.className = 'status-msg error';
+    console.error(err);
+  }
+}
+
+// 儲存這個課程勾選的授課老師（存回「課程」分頁的「授課老師」欄位，多位用頓號分開）
+async function saveCourseTeachers() {
+  if (!courseDetailCurrent) return;
+  const btn = document.getElementById('course-teacher-save-btn');
+  const msg = document.getElementById('course-teacher-msg');
+  const names = Array.from(document.querySelectorAll('#course-teacher-box .course-teacher-cb:checked')).map(cb => cb.value);
+  btn.disabled = true;
+  msg.textContent = '儲存中…';
+  msg.className = 'status-msg';
+  try {
+    const res = await apiPostRaw({ action: 'update', type: 'course', id: courseDetailCurrent['編號'], data: { 授課老師: names.join('、') } });
+    if (res.ok) {
+      courseDetailCurrent['授課老師'] = names.join('、');
+      msg.textContent = '✅ 已儲存';
+      msg.className = 'status-msg ok';
+      loadCourseList();
+    } else {
+      msg.textContent = '❌ 儲存失敗：' + res.error;
+      msg.className = 'status-msg error';
+    }
+  } catch (err) {
+    msg.textContent = '❌ 儲存失敗，請確認網路連線';
+    msg.className = 'status-msg error';
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function renderTicketTypeList(courseName) {
@@ -733,18 +851,50 @@ async function renderTicketTypeList(courseName) {
 
 function closeTicketTypeModal() {
   document.getElementById('tickettype-overlay').classList.remove('active');
-  ticketTypeCurrentCourse = '';
+  courseDetailCurrent = null;
+}
+
+// ---------- 課程對應的授課老師（限制「售票登記」指定老師、「上課紀錄」師資的候選名單，只列這個課程勾過的講師） ----------
+let courseInstructorsByName = {};
+
+async function loadCourseInstructorMap() {
+  try {
+    const res = await apiGet({ action: 'list', type: 'course' });
+    courseInstructorsByName = {};
+    (res.ok ? res.data || [] : []).forEach(c => {
+      courseInstructorsByName[c['課程名稱'] || ''] = splitNames(c['授課老師']);
+    });
+  } catch (err) {
+    console.error('讀取課程授課老師失敗', err);
+  }
+}
+
+// 老師勾選框的通用「最多選N位」邏輯，售票登記單人／多人購買共用
+function updateTeacherCheckboxCounter(box, counterEl) {
+  if (!box) return;
+  const limit = Number(box.dataset.limit) || 0;
+  const checkboxes = Array.from(box.querySelectorAll('input[type="checkbox"]'));
+  const checkedCount = checkboxes.filter(cb => cb.checked).length;
+  checkboxes.forEach(cb => {
+    cb.disabled = !cb.checked && checkedCount >= limit;
+  });
+  if (counterEl) counterEl.textContent = `（最多選 ${limit} 位，已選 ${checkedCount} 位）`;
 }
 
 // ---------- 售票登記：售票用的「課程＋票種＋堂數」下拉選單，選了會自動帶出金額、堂數，以及可指定老師的勾選名單 ----------
 let ticketTypeCache = [];
+let ticketBaseAmount = 0;
+let ticketBaseLessons = 0;
 
 async function loadTicketCourseComboOptions() {
   const sel = document.getElementById('ticket-course-combo-select');
   if (!sel) return;
   try {
-    const res = await apiGet({ action: 'list', type: 'ticketType' });
-    ticketTypeCache = res.ok ? (res.data || []) : [];
+    const [ticketTypeRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'ticketType' }),
+      loadCourseInstructorMap()
+    ]);
+    ticketTypeCache = ticketTypeRes.ok ? (ticketTypeRes.data || []) : [];
     sel.innerHTML = '<option value="">請選擇課程與票種</option>' +
       ticketTypeCache.map((c, idx) =>
         `<option value="${idx}">${escapeHtml(c['課程名稱'] || '')}－${escapeHtml(c['票種'] || '')}（${escapeHtml(String(c['堂數'] || ''))}堂）</option>`
@@ -765,18 +915,34 @@ function updateTicketComboFields() {
   const item = ticketTypeCache[Number(sel.value)];
   if (!item) {
     if (hint) hint.textContent = '';
-    renderTicketTeacherBox(0);
+    ticketBaseAmount = 0;
+    ticketBaseLessons = 0;
+    renderTicketTeacherBox(0, '');
+    refreshAllMultiRowTeacherBoxes();
     return;
   }
   const amt = identitySel.value === '非會員' ? item['非會員金額'] : item['會員金額'];
-  if (amt !== undefined && amt !== '') amountInput.value = amt;
-  if (lessonsInput && item['堂數'] !== undefined && item['堂數'] !== '') lessonsInput.value = item['堂數'];
+  ticketBaseAmount = Number(amt) || 0;
+  ticketBaseLessons = Number(item['堂數']) || 0;
+  applyTicketQty();
   if (hint) hint.textContent = `（會員 ${item['會員金額'] || 0}／非會員 ${item['非會員金額'] || 0}，共${item['堂數'] || 0}堂）`;
-  renderTicketTeacherBox(Number(item['可指定老師人數']) || 0);
+  renderTicketTeacherBox(Number(item['可指定老師人數']) || 0, item['課程名稱'] || '');
+  refreshAllMultiRowTeacherBoxes();
 }
 
-// ---------- 售票登記：指定老師勾選名單（依票種的「可指定老師人數」顯示／隱藏，並限制最多勾選幾位） ----------
-function renderTicketTeacherBox(limit) {
+// 數量改變時，金額跟購買堂數都以「單張」為基準乘上數量（單人購買才用得到）
+function applyTicketQty() {
+  const amountInput = document.getElementById('ticket-amount-input');
+  const lessonsInput = document.getElementById('ticket-lessons-input');
+  const qtyInput = document.getElementById('ticket-qty-input');
+  if (!amountInput || !lessonsInput) return;
+  const qty = Math.max(1, Number(qtyInput && qtyInput.value) || 1);
+  amountInput.value = ticketBaseAmount * qty;
+  lessonsInput.value = ticketBaseLessons * qty;
+}
+
+// ---------- 售票登記：指定老師勾選名單（依票種的「可指定老師人數」顯示／隱藏，候選名單是課程勾過的講師） ----------
+function renderTicketTeacherBox(limit, courseName) {
   const field = document.getElementById('ticket-teacher-field');
   const box = document.getElementById('ticket-teacher-box');
   if (!field || !box) return;
@@ -788,7 +954,12 @@ function renderTicketTeacherBox(limit) {
   }
   field.style.display = '';
   box.dataset.limit = String(limit);
-  box.innerHTML = partnerNamesCache.map(n => `
+  const pool = courseInstructorsByName[courseName] || [];
+  if (pool.length === 0) {
+    box.innerHTML = '<p class="hint">這個課程還沒有設定授課老師，請先到「課程」頁籤點課程卡片新增。</p>';
+    return;
+  }
+  box.innerHTML = pool.map(n => `
     <label>
       <input type="checkbox" class="ticket-teacher-cb" value="${escapeHtml(n)}" />
       <span>${escapeHtml(n)}</span>
@@ -801,101 +972,289 @@ function renderTicketTeacherBox(limit) {
 }
 
 function updateTicketTeacherCounter() {
-  const box = document.getElementById('ticket-teacher-box');
-  const counter = document.getElementById('ticket-teacher-counter');
-  if (!box) return;
-  const limit = Number(box.dataset.limit) || 0;
-  const checkboxes = Array.from(box.querySelectorAll('.ticket-teacher-cb'));
-  const checkedCount = checkboxes.filter(cb => cb.checked).length;
-  checkboxes.forEach(cb => {
-    cb.disabled = !cb.checked && checkedCount >= limit;
-  });
-  if (counter) counter.textContent = `（最多選 ${limit} 位，已選 ${checkedCount} 位）`;
+  updateTeacherCheckboxCounter(document.getElementById('ticket-teacher-box'), document.getElementById('ticket-teacher-counter'));
 }
 
-// ---------- 上課紀錄用：課程項目下拉選單（只列課程名稱，不分票種） ----------
+// ---------- 售票登記：一次幫多人買，每一列各自的指定老師勾選框 ----------
+function getCurrentTicketTypeItem() {
+  const sel = document.getElementById('ticket-course-combo-select');
+  return sel ? ticketTypeCache[Number(sel.value)] : null;
+}
+
+function renderMultiRowTeacherBox(rowEl) {
+  const item = getCurrentTicketTypeItem();
+  const field = rowEl.querySelector('.multi-teacher-field');
+  const box = rowEl.querySelector('.multi-teacher-box');
+  const counter = rowEl.querySelector('.multi-teacher-counter');
+  if (!field || !box) return;
+  const limit = item ? (Number(item['可指定老師人數']) || 0) : 0;
+  if (!limit) {
+    field.style.display = 'none';
+    box.innerHTML = '';
+    box.dataset.limit = '0';
+    return;
+  }
+  field.style.display = '';
+  box.dataset.limit = String(limit);
+  const pool = item ? (courseInstructorsByName[item['課程名稱'] || ''] || []) : [];
+  if (pool.length === 0) {
+    box.innerHTML = '<p class="hint">這個課程還沒有設定授課老師。</p>';
+    return;
+  }
+  box.innerHTML = pool.map(n => `
+    <label>
+      <input type="checkbox" class="multi-teacher-cb" value="${escapeHtml(n)}" />
+      <span>${escapeHtml(n)}</span>
+    </label>
+  `).join('');
+  box.querySelectorAll('.multi-teacher-cb').forEach(cb => {
+    cb.addEventListener('change', () => updateTeacherCheckboxCounter(box, counter));
+  });
+  updateTeacherCheckboxCounter(box, counter);
+}
+
+function refreshAllMultiRowTeacherBoxes() {
+  document.querySelectorAll('#ticket-multi-rows .multi-row').forEach(renderMultiRowTeacherBox);
+}
+
+// ---------- 售票登記：一次幫多人買，動態新增／移除學員列 ----------
+let ticketMultiRowCount = 0;
+
+function addTicketMultiRow() {
+  const tmpl = document.getElementById('ticket-multi-row-template');
+  const node = tmpl.content.firstElementChild.cloneNode(true);
+  ticketMultiRowCount += 1;
+  node.querySelector('.row-title').textContent = '學員 ' + ticketMultiRowCount;
+  node.querySelector('.ticket-multi-remove').addEventListener('click', () => {
+    node.remove();
+    renumberTicketMultiRows();
+  });
+  document.getElementById('ticket-multi-rows').appendChild(node);
+  renderMultiRowTeacherBox(node);
+  return node;
+}
+
+function renumberTicketMultiRows() {
+  const rows = document.querySelectorAll('#ticket-multi-rows .multi-row');
+  rows.forEach((row, idx) => { row.querySelector('.row-title').textContent = '學員 ' + (idx + 1); });
+  ticketMultiRowCount = rows.length;
+}
+
+function resetTicketMultiRows() {
+  document.getElementById('ticket-multi-rows').innerHTML = '';
+  ticketMultiRowCount = 0;
+  addTicketMultiRow();
+}
+
+// ---------- 售票登記：單人／多人購買模式切換 ----------
+function setTicketMode(mode) {
+  document.getElementById('ticket-mode-single-btn').classList.toggle('active', mode === 'single');
+  document.getElementById('ticket-mode-multi-btn').classList.toggle('active', mode === 'multi');
+  document.getElementById('ticket-single-block').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('ticket-multi-block').style.display = mode === 'multi' ? '' : 'none';
+}
+
+function updateTicketStoreFieldVisibility() {
+  const sel = document.getElementById('ticket-buytype-select');
+  const field = document.getElementById('ticket-store-field');
+  if (!sel || !field) return;
+  field.style.display = sel.value === '店家購票' ? '' : 'none';
+}
+
+// 課程項目、身分、購買類型、所屬店家、購買日期、備註是單人／多人購買共用的基本資料
+function collectTicketBaseData() {
+  const buyType = document.getElementById('ticket-buytype-select').value;
+  return {
+    購買日期: document.getElementById('ticket-date-input').value,
+    身分: document.getElementById('ticket-identity-select').value,
+    購買類型: buyType,
+    所屬店家: buyType === '店家購票' ? document.getElementById('ticket-store-input').value : '',
+    備註: document.getElementById('ticket-note-input').value
+  };
+}
+
+// ---------- 售票登記：單人購買送出 ----------
+async function submitTicketSingle() {
+  const btn = document.getElementById('ticket-single-submit');
+  const msg = document.getElementById('ticket-single-msg');
+  const item = getCurrentTicketTypeItem();
+  if (!item) {
+    msg.textContent = '❌ 請先選擇課程項目';
+    msg.className = 'status-msg error';
+    return;
+  }
+  const nameInput = document.getElementById('ticket-single-name');
+  const buyerName = nameInput.value.trim();
+  if (!buyerName) {
+    msg.textContent = '❌ 請填購買人姓名';
+    msg.className = 'status-msg error';
+    return;
+  }
+  const teacherBox = document.getElementById('ticket-teacher-box');
+  const selectedTeachers = teacherBox
+    ? Array.from(teacherBox.querySelectorAll('.ticket-teacher-cb:checked')).map(cb => cb.value)
+    : [];
+
+  const data = Object.assign(collectTicketBaseData(), {
+    課程項目: item['課程名稱'] || '',
+    票種: item['票種'] || '',
+    購買人: buyerName,
+    聯絡電話: document.getElementById('ticket-single-phone').value,
+    'LINE ID': document.getElementById('ticket-single-line').value,
+    金額: document.getElementById('ticket-amount-input').value,
+    購買堂數: document.getElementById('ticket-lessons-input').value,
+    指定老師: selectedTeachers.join('、')
+  });
+
+  btn.disabled = true;
+  msg.textContent = '送出中…';
+  msg.className = 'status-msg';
+  try {
+    const res = await apiPost('ticket', data);
+    if (res.ok) {
+      msg.textContent = '✅ 已送出（編號：' + res.id + '）';
+      msg.className = 'status-msg ok';
+      nameInput.value = '';
+      document.getElementById('ticket-single-phone').value = '';
+      document.getElementById('ticket-single-line').value = '';
+      document.getElementById('ticket-qty-input').value = '1';
+      applyTicketQty();
+      renderTicketTeacherBox(Number(item['可指定老師人數']) || 0, item['課程名稱'] || '');
+      loadList('ticket', 'ticket-sales');
+    } else {
+      msg.textContent = '❌ 送出失敗：' + res.error;
+      msg.className = 'status-msg error';
+    }
+  } catch (err) {
+    msg.textContent = '❌ 送出失敗，請確認網路連線';
+    msg.className = 'status-msg error';
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---------- 售票登記：一次幫多人買送出（每一位各自變成一筆獨立的售票紀錄） ----------
+async function submitTicketMulti() {
+  const btn = document.getElementById('ticket-multi-submit');
+  const msg = document.getElementById('ticket-multi-msg');
+  const item = getCurrentTicketTypeItem();
+  if (!item) {
+    msg.textContent = '❌ 請先選擇課程項目';
+    msg.className = 'status-msg error';
+    return;
+  }
+  const rows = Array.from(document.querySelectorAll('#ticket-multi-rows .multi-row'));
+  const entries = [];
+  rows.forEach(row => {
+    const name = row.querySelector('.multi-name').value.trim();
+    if (!name) return;
+    const phone = row.querySelector('.multi-phone').value;
+    const line = row.querySelector('.multi-line').value;
+    const teacherBox = row.querySelector('.multi-teacher-box');
+    const teachers = teacherBox
+      ? Array.from(teacherBox.querySelectorAll('.multi-teacher-cb:checked')).map(cb => cb.value)
+      : [];
+    entries.push({ name, phone, line, teachers });
+  });
+  if (entries.length === 0) {
+    msg.textContent = '❌ 請至少填一位學員的姓名';
+    msg.className = 'status-msg error';
+    return;
+  }
+
+  const base = collectTicketBaseData();
+  const unitAmount = base.身分 === '非會員' ? item['非會員金額'] : item['會員金額'];
+  btn.disabled = true;
+  msg.textContent = '送出中…';
+  msg.className = 'status-msg';
+  let successCount = 0;
+  const failNames = [];
+  for (const entry of entries) {
+    const data = Object.assign({}, base, {
+      課程項目: item['課程名稱'] || '',
+      票種: item['票種'] || '',
+      購買人: entry.name,
+      聯絡電話: entry.phone,
+      'LINE ID': entry.line,
+      金額: unitAmount,
+      購買堂數: item['堂數'],
+      指定老師: entry.teachers.join('、')
+    });
+    try {
+      const res = await apiPost('ticket', data);
+      if (res.ok) successCount += 1;
+      else failNames.push(entry.name);
+    } catch (err) {
+      failNames.push(entry.name);
+    }
+  }
+  btn.disabled = false;
+  if (failNames.length === 0) {
+    msg.textContent = `✅ 已送出 ${successCount} 筆售票紀錄`;
+    msg.className = 'status-msg ok';
+    resetTicketMultiRows();
+  } else {
+    msg.textContent = `⚠️ 送出 ${successCount}／${entries.length} 筆成功，失敗：${failNames.join('、')}`;
+    msg.className = 'status-msg error';
+  }
+  loadList('ticket', 'ticket-sales');
+}
+
+// ---------- 上課紀錄用：課程項目下拉選單（只列課程名稱，不分票種），並準備每個課程對應的授課老師名單 ----------
 async function loadCourseNameSelectOptions(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   try {
-    const res = await apiGet({ action: 'list', type: 'course' });
-    const names = (res.ok ? res.data || [] : []).map(c => c['課程名稱']).filter(Boolean);
+    await loadCourseInstructorMap();
+    const names = Object.keys(courseInstructorsByName).filter(Boolean);
     const current = sel.value;
     sel.innerHTML = '<option value="">請選擇課程項目</option>' +
       names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
     if (names.includes(current)) sel.value = current;
+    updateClassSessionTeacherOptions();
   } catch (err) {
     console.error('讀取課程失敗', err);
   }
 }
 
-// ---------- 售票登記：自訂送出邏輯（要合併「課程項目下拉」選到的課程＋票種，以及指定老師勾選，一般表單機制不夠用） ----------
+// 上課紀錄：「師資」下拉只列出目前選到的課程勾過的講師
+function updateClassSessionTeacherOptions() {
+  const courseSel = document.getElementById('class-session-course-select');
+  const teacherSel = document.getElementById('class-session-teacher-select');
+  if (!courseSel || !teacherSel) return;
+  const pool = courseInstructorsByName[courseSel.value] || [];
+  const current = teacherSel.value;
+  teacherSel.innerHTML = '<option value="">請選擇老師</option>' +
+    pool.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  if (pool.includes(current)) teacherSel.value = current;
+}
+
+function setupClassSessionForm() {
+  const courseSel = document.getElementById('class-session-course-select');
+  if (courseSel) courseSel.addEventListener('change', updateClassSessionTeacherOptions);
+}
+
+// ---------- 售票登記表單：設定各種切換／連動事件（金額換算、購買類型、單人多人模式） ----------
 function setupTicketSalesForm() {
-  const form = document.getElementById('ticket-sales-form');
-  if (!form) return;
   const combo = document.getElementById('ticket-course-combo-select');
   const identitySel = document.getElementById('ticket-identity-select');
+  const buytypeSel = document.getElementById('ticket-buytype-select');
+  const qtyInput = document.getElementById('ticket-qty-input');
   if (combo) combo.addEventListener('change', updateTicketComboFields);
   if (identitySel) identitySel.addEventListener('change', updateTicketComboFields);
+  if (buytypeSel) buytypeSel.addEventListener('change', updateTicketStoreFieldVisibility);
+  if (qtyInput) qtyInput.addEventListener('input', applyTicketQty);
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = form.querySelector('button[type="submit"]');
-    const msg = form.querySelector('.status-msg');
-    const item = ticketTypeCache[Number(combo.value)];
-    if (!item) {
-      msg.textContent = '❌ 請先選擇課程項目';
-      msg.className = 'status-msg error';
-      return;
-    }
-    const buyerName = form.querySelector('input[name="購買人"]').value.trim();
-    if (!buyerName) {
-      msg.textContent = '❌ 請填購買人';
-      msg.className = 'status-msg error';
-      return;
-    }
-    const teacherBox = document.getElementById('ticket-teacher-box');
-    const selectedTeachers = teacherBox
-      ? Array.from(teacherBox.querySelectorAll('.ticket-teacher-cb:checked')).map(cb => cb.value)
-      : [];
-    const data = {
-      購買日期: form.querySelector('input[name="購買日期"]').value,
-      課程項目: item['課程名稱'] || '',
-      票種: item['票種'] || '',
-      身分: identitySel.value,
-      購買人: buyerName,
-      金額: form.querySelector('input[name="金額"]').value,
-      購買堂數: form.querySelector('input[name="購買堂數"]').value,
-      指定老師: selectedTeachers.join('、'),
-      備註: form.querySelector('input[name="備註"]').value
-    };
+  document.getElementById('ticket-mode-single-btn').addEventListener('click', () => setTicketMode('single'));
+  document.getElementById('ticket-mode-multi-btn').addEventListener('click', () => setTicketMode('multi'));
+  document.getElementById('ticket-multi-add-btn').addEventListener('click', addTicketMultiRow);
+  document.getElementById('ticket-single-submit').addEventListener('click', submitTicketSingle);
+  document.getElementById('ticket-multi-submit').addEventListener('click', submitTicketMulti);
 
-    btn.disabled = true;
-    msg.textContent = '送出中…';
-    msg.className = 'status-msg';
-    try {
-      const res = await apiPost('ticket', data);
-      if (res.ok) {
-        msg.textContent = '✅ 已送出（編號：' + res.id + '）';
-        msg.className = 'status-msg ok';
-        form.reset();
-        combo.value = '';
-        const hint = document.getElementById('ticket-amount-hint');
-        if (hint) hint.textContent = '';
-        renderTicketTeacherBox(0);
-        loadList('ticket', 'ticket-sales');
-      } else {
-        msg.textContent = '❌ 送出失敗：' + res.error;
-        msg.className = 'status-msg error';
-      }
-    } catch (err) {
-      msg.textContent = '❌ 送出失敗，請確認網路連線';
-      msg.className = 'status-msg error';
-      console.error(err);
-    } finally {
-      btn.disabled = false;
-    }
-  });
+  updateTicketStoreFieldVisibility();
+  setTicketMode('single');
+  resetTicketMultiRows();
 }
 
 // ---------- 動態明細列（會議待辦事項／專案工作事項共用機制） ----------
@@ -983,6 +1342,9 @@ function openEditModal(type, row, onSaved) {
     if (m.type === 'partner') {
       return `<label>${label}<select name="${escapeHtml(field)}" class="partner-select" data-current="${escapeHtml(rawVal)}"></select></label>`;
     }
+    if (m.type === 'instructor') {
+      return `<label>${label}<select name="${escapeHtml(field)}" class="instructor-select" data-current="${escapeHtml(rawVal)}"></select></label>`;
+    }
     if (m.type === 'number') {
       return `<label>${label}<input type="number" name="${escapeHtml(field)}" value="${escapeHtml(rawVal)}" /></label>`;
     }
@@ -1000,6 +1362,11 @@ function openEditModal(type, row, onSaved) {
 
   form.querySelectorAll('select.partner-select').forEach(sel => {
     fillPartnerSelect(sel);
+    const cur = sel.dataset.current;
+    if (cur) sel.value = cur;
+  });
+  form.querySelectorAll('select.instructor-select').forEach(sel => {
+    fillInstructorSelect(sel);
     const cur = sel.dataset.current;
     if (cur) sel.value = cur;
   });
@@ -1352,11 +1719,15 @@ async function loadStudentOverview() {
       } else {
         teacherText.split(/[、,，]/).map(s => s.trim()).filter(Boolean).forEach(n => g.teacherSet.add(n));
       }
-      // 用「購買日期」最新的一筆，當作目前顯示的票種／身分
+      // 用「購買日期」最新的一筆，當作目前顯示的票種／身分／聯絡方式／購買類型
       if (!g.lastDate || String(t['購買日期'] || '') >= String(g.lastDate)) {
         g.lastDate = t['購買日期'];
         g.ticketType = t['票種'];
         g.identity = t['身分'];
+        g.phone = t['聯絡電話'];
+        g.buyType = t['購買類型'];
+        g.store = t['所屬店家'];
+        g.line = t['LINE ID'];
       }
     });
 
@@ -1387,12 +1758,17 @@ async function loadStudentOverview() {
       const attended = records.filter(r => r['出席狀態'] === '出席').length;
       const remaining = g.purchased - attended;
       const teacherText = g.unrestricted ? '不限' : (g.teacherSet.size ? Array.from(g.teacherSet).join('、') : '-');
+      const buyTypeText = g.buyType === '店家購票'
+        ? '店家購票' + (g.store ? '（' + escapeHtml(g.store) + '）' : '')
+        : (g.buyType ? escapeHtml(g.buyType) : '-');
       return `
         <tr>
           <td>${escapeHtml(g.name)}</td>
-          <td>${escapeHtml(g.courseItem || '-')}</td>
+          <td>${escapeHtml(g.phone || '-')}</td>
+          <td>${g.courseItem ? escapeHtml(g.courseItem) : '-'}</td>
           <td>${g.ticketType ? escapeHtml(g.ticketType) : '-'}</td>
           <td>${g.identity ? tagHtml(g.identity) : '-'}</td>
+          <td>${buyTypeText}</td>
           <td>${escapeHtml(teacherText)}</td>
           <td class="amt">${g.purchased}</td>
           <td class="amt">${attended}</td>
@@ -1404,7 +1780,7 @@ async function loadStudentOverview() {
 
     wrap.innerHTML = `
       <table class="cat-table">
-        <thead><tr><th>姓名</th><th>課程項目</th><th>票種</th><th>身分</th><th>指定老師</th><th>購買堂數</th><th>已出席</th><th>剩餘堂數</th><th>操作</th></tr></thead>
+        <thead><tr><th>姓名</th><th>電話</th><th>課程項目</th><th>票種</th><th>身分</th><th>購買類型</th><th>指定老師</th><th>購買堂數</th><th>已出席</th><th>剩餘堂數</th><th>操作</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
     `;
@@ -1414,7 +1790,7 @@ async function loadStudentOverview() {
       btn.addEventListener('click', () => {
         const key = orderedKeys[Number(btn.dataset.idx)];
         const g = groups[key];
-        openStudentDetail(g.name, g.courseItem, attendanceByKey[key] || []);
+        openStudentDetail(g, attendanceByKey[key] || []);
       });
     });
   } catch (err) {
@@ -1423,7 +1799,7 @@ async function loadStudentOverview() {
   }
 }
 
-function openStudentDetail(name, courseItem, records) {
+function openStudentDetail(g, records) {
   const content = document.getElementById('detail-content');
   const sorted = [...records].sort((a, b) => String(b['日期'] || '').localeCompare(String(a['日期'] || '')));
   const attended = sorted.filter(r => r['出席狀態'] === '出席').length;
@@ -1434,8 +1810,14 @@ function openStudentDetail(name, courseItem, records) {
       <td>${tagHtml(r['出席狀態'] || '')}</td>
     </tr>
   `).join('');
+  const contactBits = [];
+  if (g.phone) contactBits.push('電話：' + g.phone);
+  if (g.line) contactBits.push('LINE ID：' + g.line);
+  if (g.buyType === '店家購票') contactBits.push('所屬店家：' + (g.store || '-'));
+  else if (g.buyType) contactBits.push(g.buyType);
   content.innerHTML = `
-    <h3>${escapeHtml(name)}　${escapeHtml(courseItem || '')}　上課明細</h3>
+    <h3>${escapeHtml(g.name)}　${escapeHtml(g.courseItem || '')}　上課明細</h3>
+    ${contactBits.length ? `<p class="hint">${escapeHtml(contactBits.join('・'))}</p>` : ''}
     <p class="hint">共 ${sorted.length} 堂，出席 ${attended} 次、缺席 ${sorted.length - attended} 次。</p>
     ${sorted.length ? `
       <table class="cat-table">
@@ -3334,6 +3716,7 @@ function setupForms() {
           });
           if (type === 'inventory') loadDatalist('inventory', '品項名稱', 'inventory-name-list');
           if (type === 'course') loadCourseList();
+          if (type === 'classSession') updateClassSessionTeacherOptions();
         } else {
           msg.textContent = '❌ 送出失敗：' + res.error;
           msg.className = 'status-msg error';
@@ -3396,8 +3779,11 @@ async function init() {
   document.getElementById('tickettype-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'tickettype-overlay') closeTicketTypeModal();
   });
+  document.getElementById('course-add-teacher-btn').addEventListener('click', addCourseTeacherInline);
+  document.getElementById('course-teacher-save-btn').addEventListener('click', saveCourseTeachers);
   setupAttendanceModal();
   setupTicketSalesForm();
+  setupClassSessionForm();
   document.getElementById('attendance-close').addEventListener('click', closeAttendanceModal);
   document.getElementById('attendance-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'attendance-overlay') closeAttendanceModal();
@@ -3429,6 +3815,7 @@ async function init() {
   if (!granted) return;
 
   loadPartners();
+  loadInstructors();
   loadDatalist('inventory', '品項名稱', 'inventory-name-list');
   populateSettlementProjectSelect();
   populateExpenseItemProjectSelect();
