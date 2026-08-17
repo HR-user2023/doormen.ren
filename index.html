@@ -712,47 +712,44 @@
     </div>
   </section>
 
-  <!-- ============ 票種設定（先定義有哪些票種可以賣，售票登記的「票種」會抓這裡當建議清單） ============ -->
-  <section id="view-ticket-type-setup" class="view content-view">
+  <!-- ============ 課程（只設定課程名稱，票種在課程卡片裡管理） ============ -->
+  <section id="view-course-list" class="view content-view">
     <div class="card">
-      <h2>新增票種</h2>
-      <p class="hint">先在這裡定義票種（例如「年票-會員」「年票-非會員」「季票-會員」…），之後想開新課程也可以直接加新的一列。</p>
-      <form class="grid" data-type="ticketType">
-        <label>票種名稱
-          <input type="text" name="票種名稱" placeholder="例如：年票-會員" required />
-        </label>
-        <label>金額
-          <input type="number" name="金額" min="0" step="1" required />
+      <h2>新增課程</h2>
+      <p class="hint">課程本身只填名稱，票種、堂數、價格、可指定老師人數都在課程卡片裡設定。</p>
+      <form class="grid" data-type="course">
+        <label>課程名稱
+          <input type="text" name="課程名稱" placeholder="例如：瑜珈" required />
         </label>
         <label class="full">備註<span class="optional-note">（選填）</span>
           <input type="text" name="備註" />
         </label>
         <div class="submit-row">
-          <button type="submit" class="primary">送出票種</button>
+          <button type="submit" class="primary">送出課程</button>
           <span class="status-msg"></span>
         </div>
       </form>
     </div>
     <div class="card">
-      <h2>票種列表</h2>
-      <div class="table-wrap" data-list="ticketType"></div>
+      <h2>課程列表</h2>
+      <p class="hint">點課程卡片可以管理這個課程底下的票種（年票／季票／單堂票、堂數、價格、可指定老師人數）。</p>
+      <div class="doc-list" id="course-list-wrap"></div>
     </div>
   </section>
 
-  <!-- ============ 售票登記（登記學員買了哪個票種） ============ -->
+  <!-- ============ 售票登記（選課程項目＋票種＋身分，登記學員買票） ============ -->
   <section id="view-ticket-sales" class="view content-view">
     <div class="card">
       <h2>新增售票</h2>
-      <form class="grid" data-type="ticket">
+      <form class="grid" id="ticket-sales-form" data-type="ticket">
         <label>購買日期
           <input type="date" name="購買日期" required />
         </label>
-        <label>票種<span class="optional-note">（打字會出現「票種設定」的建議名稱，也可以直接打新的）</span>
-          <input type="text" name="票種" list="ticket-type-name-list" required />
-          <datalist id="ticket-type-name-list"></datalist>
+        <label>課程項目<span class="optional-note">（在「課程」頁籤點課程卡片設定票種）</span>
+          <select id="ticket-course-combo-select" required></select>
         </label>
         <label>身分
-          <select name="身分">
+          <select id="ticket-identity-select" name="身分">
             <option>會員</option>
             <option>非會員</option>
           </select>
@@ -760,11 +757,14 @@
         <label>購買人
           <input type="text" name="購買人" required />
         </label>
-        <label>金額
-          <input type="number" name="金額" min="0" step="1" required />
+        <label>金額<span class="optional-note" id="ticket-amount-hint"></span>
+          <input type="number" name="金額" id="ticket-amount-input" min="0" step="1" required />
         </label>
-        <label>有效期限<span class="optional-note">（年票／季票才需要，單堂票可留空）</span>
-          <input type="date" name="有效期限" />
+        <label>購買堂數<span class="optional-note" id="ticket-lessons-hint">（選好課程項目會自動帶入，如有特殊約定可手動調整）</span>
+          <input type="number" name="購買堂數" id="ticket-lessons-input" min="1" step="1" required />
+        </label>
+        <label class="full" id="ticket-teacher-field" style="display:none;">指定老師<span class="optional-note" id="ticket-teacher-counter"></span>
+          <div class="teacher-checklist" id="ticket-teacher-box"></div>
         </label>
         <label class="full">備註
           <input type="text" name="備註" />
@@ -774,7 +774,7 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">這裡的「購買人」名字，之後在「上課紀錄」點「出席名單」會自動抓年票／季票購買人清單。</p>
+      <p class="hint">這裡的「購買人」名字，之後在「上課紀錄」點「出席名單」會自動抓同一個課程項目底下還有剩餘堂數、老師也符合的購買人。</p>
     </div>
     <div class="card">
       <h2>售票紀錄列表</h2>
@@ -787,8 +787,14 @@
     <div class="card">
       <h2>新增一堂課</h2>
       <form class="grid" data-type="classSession">
+        <label>課程項目<span class="optional-note">（在「課程」頁籤設定）</span>
+          <select name="課程項目" id="class-session-course-select" required></select>
+        </label>
         <label>日期
           <input type="date" name="日期" required />
+        </label>
+        <label>師資<span class="optional-note">（這堂實際教課的老師）</span>
+          <select name="師資" class="partner-select" required></select>
         </label>
         <label>課程名稱
           <input type="text" name="課程名稱" required />
@@ -814,7 +820,7 @@
     </div>
     <div class="card">
       <h2>上課紀錄列表</h2>
-      <p class="hint">點每一列的「出席名單」，可以勾選這堂課年票／季票購買人誰有來、誰沒來。</p>
+      <p class="hint">點每一列的「出席名單」，可以勾選這堂課同一個課程項目底下還有剩餘堂數、老師也符合（或不限老師）的購買人誰有來、誰沒來。</p>
       <div class="table-wrap" data-list="classSession"></div>
     </div>
   </section>
@@ -823,7 +829,7 @@
   <section id="view-student-overview" class="view content-view">
     <div class="card">
       <h2>學員總覽</h2>
-      <p class="hint">列出所有學員目前的票種、身分、有效期限，以及已上幾堂、出席幾次；點「查看明細」可以看每一堂課的出席狀況。這個畫面即時從「售票登記」＋「上課出席名單」算出來，不用另外填資料。</p>
+      <p class="hint">按「課程項目」分開列出每位學員的票種、身分、指定老師、購買堂數、已出席、剩餘堂數；點「查看明細」可以看每一堂課的出席狀況。這個畫面即時從「售票登記」＋「上課出席名單」算出來，不用另外填資料。</p>
       <div class="scroll-wrap" id="student-overview-wrap"></div>
     </div>
   </section>
@@ -873,12 +879,49 @@
   </div>
 </div>
 
+<!-- ============ 票種設定彈窗（某個課程底下的票種方案，可逐筆新增／編輯） ============ -->
+<div id="tickettype-overlay" class="modal-overlay">
+  <div class="modal-doc modal-doc-narrow">
+    <button id="tickettype-close" class="modal-close" title="關閉">×</button>
+    <h3 id="tickettype-title">票種設定</h3>
+    <form class="grid" id="tickettype-add-form">
+      <label>票種
+        <select name="票種">
+          <option>年票</option>
+          <option>季票</option>
+          <option>單堂票</option>
+        </select>
+      </label>
+      <label>堂數<span class="optional-note">（這個方案總共可以上幾堂課，單堂票填1）</span>
+        <input type="number" name="堂數" min="1" step="1" required />
+      </label>
+      <label>會員金額
+        <input type="number" name="會員金額" min="0" step="1" required />
+      </label>
+      <label>非會員金額
+        <input type="number" name="非會員金額" min="0" step="1" required />
+      </label>
+      <label class="full">可指定老師人數<span class="optional-note">（0或留空＝不限老師；填1就限定1位，以此類推）</span>
+        <input type="number" name="可指定老師人數" min="0" step="1" />
+      </label>
+      <label class="full">備註<span class="optional-note">（選填）</span>
+        <input type="text" name="備註" />
+      </label>
+      <div class="submit-row">
+        <button type="submit" class="primary">＋ 新增票種</button>
+        <span class="status-msg"></span>
+      </div>
+    </form>
+    <div id="tickettype-list"></div>
+  </div>
+</div>
+
 <!-- ============ 出席名單彈窗（某一堂上課紀錄底下的出席狀況，勾選誰來、誰沒來） ============ -->
 <div id="attendance-overlay" class="modal-overlay">
   <div class="modal-doc modal-doc-narrow">
     <button id="attendance-close" class="modal-close" title="關閉">×</button>
     <h3 id="attendance-title">出席名單</h3>
-    <p class="hint">預設列出目前還在效期內的年票／季票購買人，勾選代表「出席」，取消勾選代表「缺席」。也可以在下面手動加入其他人（例如單堂票購買人）。</p>
+    <p class="hint">預設列出同一個課程項目底下還有剩餘堂數、老師也符合（沒指定老師的票不限）的購買人，勾選代表「出席」，取消勾選代表「缺席」，出席一次會自動少算一堂。也可以在下面手動加入其他人（例如臨時來賓，或想破例上課的學員）。</p>
     <div id="attendance-list"></div>
     <div class="add-attendee-row">
       <input type="text" id="attendance-add-name" placeholder="手動加入姓名（例如單堂票購買人）" />
