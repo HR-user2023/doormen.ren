@@ -735,42 +735,60 @@ async function openCourseDetail(course) {
   await renderTicketTypeList(courseName);
 }
 
-// 授課老師勾選清單（來源是講師名單，不是夥伴名單）
+// 授課老師勾選清單：只顯示「這個課程自己新增過」的老師，不會看到其他課程新增過的講師
+// （名字還是會存進共用的「講師名單」分頁，只是畫面上每個課程各自獨立顯示）
+let courseTeacherWorkingList = []; // 目前這個課程設定視窗裡看得到的老師名字
+
 function renderCourseTeacherBox(selectedNames) {
   const box = document.getElementById('course-teacher-box');
   if (!box) return;
-  const selectedSet = new Set(selectedNames || []);
-  if (instructorNamesCache.length === 0) {
-    box.innerHTML = '<p class="hint">目前還沒有講師，請在下面輸入名字新增。</p>';
+  courseTeacherWorkingList = Array.from(new Set(selectedNames || []));
+  if (courseTeacherWorkingList.length === 0) {
+    box.innerHTML = '<p class="hint">這個課程還沒有老師，請在下面輸入名字新增。</p>';
     return;
   }
-  box.innerHTML = instructorNamesCache.map(n => `
+  box.innerHTML = courseTeacherWorkingList.map(n => `
     <label>
-      <input type="checkbox" class="course-teacher-cb" value="${escapeHtml(n)}" ${selectedSet.has(n) ? 'checked' : ''} />
+      <input type="checkbox" class="course-teacher-cb" value="${escapeHtml(n)}" checked />
       <span>${escapeHtml(n)}</span>
     </label>
   `).join('');
 }
 
 // 直接在課程設定彈窗裡輸入名字，新增一位講師（存到「講師名單」，跟夥伴名單無關），新增後自動勾選
+// 只會出現在「這個課程」的清單裡；如果這個名字之前已經在別的課程新增過，就不會重複寫進「講師名單」分頁
 async function addCourseTeacherInline() {
   const input = document.getElementById('course-new-teacher-input');
   const name = input.value.trim();
   if (!name) return;
   const msg = document.getElementById('course-teacher-msg');
+
+  if (courseTeacherWorkingList.includes(name)) {
+    msg.textContent = '這位老師已經在這個課程的清單裡了';
+    msg.className = 'status-msg';
+    input.value = '';
+    return;
+  }
+
   try {
-    const res = await apiPost('instructor', { 姓名: name });
-    if (res.ok) {
-      if (!instructorNamesCache.includes(name)) instructorNamesCache.push(name);
+    let ok = true;
+    if (!instructorNamesCache.includes(name)) {
+      const res = await apiPost('instructor', { 姓名: name });
+      ok = res.ok;
+      if (ok) {
+        instructorNamesCache.push(name);
+      } else {
+        msg.textContent = '❌ 新增講師失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    }
+    if (ok) {
       const currentlyChecked = Array.from(document.querySelectorAll('#course-teacher-box .course-teacher-cb:checked')).map(cb => cb.value);
       currentlyChecked.push(name);
       renderCourseTeacherBox(currentlyChecked);
       input.value = '';
       msg.textContent = '✅ 已新增講師「' + name + '」，記得按下面「儲存授課老師」套用到這個課程';
       msg.className = 'status-msg ok';
-    } else {
-      msg.textContent = '❌ 新增講師失敗：' + res.error;
-      msg.className = 'status-msg error';
     }
   } catch (err) {
     msg.textContent = '❌ 新增講師失敗，請確認網路連線';
