@@ -655,9 +655,12 @@
         <label>計入月份<span class="optional-note">（選填，見下方說明）</span>
           <input type="month" name="計入月份" />
         </label>
-        <label>帳目類別<span class="optional-note">（可以直接點選這個帳戶用過的類別，或自己輸入新的）</span>
-          <input type="text" name="帳目類別" placeholder="例如：專案收入、人員薪資" required list="ledger-category-list" />
-          <datalist id="ledger-category-list"></datalist>
+        <label>帳目類別<span class="optional-note">（點右邊▾可以選這個帳戶用過的類別，或自己輸入新的）</span>
+          <div class="combo-wrap" id="ledger-category-combo">
+            <input type="text" name="帳目類別" id="ledger-category-input" placeholder="例如：專案收入、人員薪資" required autocomplete="off" />
+            <button type="button" class="combo-toggle" id="ledger-category-toggle" aria-label="選擇類別">▾</button>
+            <div class="combo-list" id="ledger-category-options"></div>
+          </div>
         </label>
         <label>場次別<span class="optional-note">（選填）</span>
           <input type="text" name="場次別" placeholder="例如市集擺攤場次" />

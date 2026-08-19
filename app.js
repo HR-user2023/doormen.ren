@@ -3580,12 +3580,61 @@ async function refreshLedgerAccountView() {
   populateLedgerCategoryDatalist(rows);
 }
 
-// 「帳目類別」輸入建議：列出目前這個帳戶用過的所有類別，點一下就能選，不用每次重打；也還是可以自己輸入新的類別
+// 「帳目類別」下拉選單：列出目前這個帳戶用過的所有類別，點一下就能選，不用每次重打；也還是可以自己輸入新的類別
+// 沒有用瀏覽器內建的 <datalist>，是因為部分手機瀏覽器對 datalist 的支援不穩定（點了或打字都可能完全沒反應），
+// 改成自己刻一個小小的下拉清單（按鈕＋清單），所有裝置的行為都一致，點右邊的▾一定會跳出清單。
+let ledgerCategoryOptions = [];
+
 function populateLedgerCategoryDatalist(rows) {
-  const el = document.getElementById('ledger-category-list');
-  if (!el) return;
-  const names = [...new Set((rows || []).map(r => r['帳目類別']).filter(Boolean))];
-  el.innerHTML = names.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+  ledgerCategoryOptions = [...new Set((rows || []).map(r => r['帳目類別']).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  renderLedgerCategoryOptions(ledgerCategoryOptions);
+}
+
+function renderLedgerCategoryOptions(list) {
+  const box = document.getElementById('ledger-category-options');
+  if (!box) return;
+  if (!list || list.length === 0) {
+    box.innerHTML = '<div class="combo-empty">這個帳戶目前還沒有用過的類別，直接在上面輸入新的類別就可以</div>';
+    return;
+  }
+  box.innerHTML = list.map(n => `<button type="button" class="combo-option" data-value="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join('');
+}
+
+function setupLedgerCategoryCombo() {
+  const wrap = document.getElementById('ledger-category-combo');
+  if (!wrap) return;
+  const input = document.getElementById('ledger-category-input');
+  const toggle = document.getElementById('ledger-category-toggle');
+  const box = document.getElementById('ledger-category-options');
+
+  function openList() {
+    renderLedgerCategoryOptions(ledgerCategoryOptions);
+    wrap.classList.add('open');
+  }
+  function closeList() {
+    wrap.classList.remove('open');
+  }
+
+  toggle.addEventListener('click', () => {
+    if (wrap.classList.contains('open')) closeList(); else openList();
+  });
+  input.addEventListener('focus', openList);
+  input.addEventListener('input', () => {
+    const kw = input.value.trim();
+    const filtered = kw ? ledgerCategoryOptions.filter(n => n.includes(kw)) : ledgerCategoryOptions;
+    renderLedgerCategoryOptions(filtered);
+    wrap.classList.add('open');
+  });
+  box.addEventListener('click', (e) => {
+    const optBtn = e.target.closest('.combo-option');
+    if (!optBtn) return;
+    input.value = optBtn.dataset.value;
+    closeList();
+  });
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) closeList();
+  });
 }
 
 function renderLedgerTable(withBalance) {
@@ -3719,6 +3768,7 @@ function renderLedgerOverview(withBalance, month) {
 
 function setupLedgerForm() {
   const form = document.getElementById('ledger-form');
+  setupLedgerCategoryCombo();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('button[type="submit"]');
