@@ -702,16 +702,19 @@
     <div class="card">
       <div class="account-tabs" id="ledger-overview-account-tabs"></div>
 
-      <h2>本月收支總覽</h2>
+      <h2 id="ledger-overview-heading">本月收支總覽</h2>
+      <div id="ledger-print-title" class="print-only"></div>
       <div class="month-row">
         <select id="ledger-month-select"></select>
       </div>
       <div id="ledger-overview-content"></div>
       <div class="submit-row">
         <button type="button" id="ledger-archive-btn" class="secondary">存檔到 Google Sheet</button>
+        <button type="button" id="ledger-print-btn" class="secondary">存成 PDF</button>
         <span class="status-msg" id="ledger-archive-msg"></span>
       </div>
       <p class="hint">存檔會把現在畫面上算好的數字（收入、支出、結餘、各帳目類別小計）寫一份到「記帳月結存檔」分頁；同一個帳戶＋月份重新存檔會覆蓋舊的，不會重複累積。</p>
+      <p class="hint">「存成 PDF」會跳出瀏覽器的列印視窗，把「印表機」（或「目的地」）改選「另存為 PDF」，就可以把現在畫面上這個帳戶、這個月份的收支總覽存成一份 PDF 檔案。</p>
     </div>
   </section>
 

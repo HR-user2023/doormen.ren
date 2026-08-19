@@ -3527,7 +3527,7 @@ function computeLedgerRunningBalances(rows, openingBalance) {
 }
 
 async function loadLedgerView() {
-  if (!ledgerFormSetup) { setupLedgerForm(); setupLedgerArchiveButton(); ledgerFormSetup = true; }
+  if (!ledgerFormSetup) { setupLedgerForm(); setupLedgerArchiveButton(); setupLedgerPrintButton(); ledgerFormSetup = true; }
   renderLedgerAccountTabs();
   await loadLedgerOpeningBalances();
   await refreshLedgerAccountView();
@@ -3558,6 +3558,16 @@ function setupLedgerArchiveButton() {
     } finally {
       btn.disabled = false;
     }
+  });
+}
+
+// 「存成 PDF」：直接用瀏覽器內建的列印功能，把「印表機」改選「另存為 PDF」就能存下來，
+// 不用額外套件，手機、電腦的行為都一致、比較穩定。
+function setupLedgerPrintButton() {
+  const btn = document.getElementById('ledger-print-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    window.print();
   });
 }
 
@@ -3764,6 +3774,10 @@ function renderLedgerOverview(withBalance, month) {
   };
   const archiveMsg = document.getElementById('ledger-archive-msg');
   if (archiveMsg) { archiveMsg.textContent = ''; archiveMsg.className = 'status-msg'; }
+
+  // 「存成 PDF」列印時要顯示的標題（平常畫面上看不到，只有列印／存PDF時才會出現）
+  const printTitle = document.getElementById('ledger-print-title');
+  if (printTitle) printTitle.textContent = `${account.label}帳戶　${month.replace('-', ' 年 ')} 月　本月收支總覽`;
 }
 
 function setupLedgerForm() {

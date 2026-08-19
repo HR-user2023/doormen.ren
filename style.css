@@ -686,6 +686,27 @@ table.cat-table td.amt { text-align: right; font-variant-numeric: tabular-nums; 
 table.cat-table td.amt.in { color: var(--ok); }
 table.cat-table td.amt.out { color: var(--danger); }
 
+/* 「本月收支總覽」存成 PDF：畫面上平常隱藏，只有在列印／存成PDF時才會顯示這個標題 */
+.print-only { display: none; }
+
+@media print {
+  header, #category-header, #config-warning, #partner-warning { display: none !important; }
+  #view-ledger-overview .account-tabs,
+  #view-ledger-overview .month-row,
+  #view-ledger-overview .submit-row,
+  #view-ledger-overview #ledger-overview-heading,
+  #view-ledger-overview > .card > .hint { display: none !important; }
+  #view-ledger-overview .card { border: none; box-shadow: none; padding: 0; margin: 0; }
+  .print-only {
+    display: block !important;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 14px;
+  }
+  body { background: #fff; }
+}
+
 .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; }
 .badge.pending { background: #FBE8CC; color: var(--warn); }
 .badge.done { background: #DCEEDC; color: var(--ok); }
