@@ -395,6 +395,14 @@ async function apiPost(type, data, file) {
   return apiPostRaw(body);
 }
 
+// 一次送出多筆新增（例如一場會議的所有議題＋待辦事項、一次幫多人買票的每一筆、專案的所有工作事項）。
+// 用一次 Apps Script 呼叫處理全部，取代原本一筆一筆送出、每筆都要等回應的做法，明顯比較快。
+// items 格式：[{ type: 'meetingTodo', data: {...} }, { type: 'meetingTopic', data: {...} }, ...]
+async function apiPostBatch(items) {
+  if (!items || items.length === 0) return { ok: true, results: [] };
+  return apiPostRaw({ action: 'addMultiple', items });
+}
+
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, s => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -1235,10 +1243,11 @@ async function submitTicketMulti() {
   btn.disabled = true;
   msg.textContent = '送出中…';
   msg.className = 'status-msg';
-  let successCount = 0;
-  const failNames = [];
-  for (const entry of entries) {
-    const data = Object.assign({}, base, {
+
+  // 每一位學員的售票紀錄一次打包送出（一次 Apps Script 呼叫），不用一筆一筆等，人數多的時候明顯快很多
+  const batchItems = entries.map(entry => ({
+    type: 'ticket',
+    data: Object.assign({}, base, {
       課程項目: item['課程名稱'] || '',
       票種: item['票種'] || '',
       購買人: entry.name,
@@ -1247,15 +1256,23 @@ async function submitTicketMulti() {
       金額: (Number(unitAmount) || 0) * entry.qty,
       購買堂數: entry.lessons,
       指定老師: entry.teachers.join('、')
-    });
-    try {
-      const res = await apiPost('ticket', data);
-      if (res.ok) successCount += 1;
+    })
+  }));
+
+  let successCount = 0;
+  const failNames = [];
+  try {
+    const batchRes = await apiPostBatch(batchItems);
+    const results = (batchRes.ok && batchRes.results) ? batchRes.results : [];
+    entries.forEach((entry, idx) => {
+      const r = results[idx];
+      if (r && r.ok) successCount += 1;
       else failNames.push(entry.name);
-    } catch (err) {
-      failNames.push(entry.name);
-    }
+    });
+  } catch (err) {
+    entries.forEach(entry => failNames.push(entry.name));
   }
+
   btn.disabled = false;
   if (failNames.length === 0) {
     msg.textContent = `✅ 已送出 ${successCount} 筆售票紀錄`;
@@ -3185,25 +3202,35 @@ function setupMeetingForm() {
       }
       const meetingId = meetingRes.id;
 
-      for (const topic of topicRows) {
-        await apiPost('meetingTopic', {
-          會議編號: meetingId,
-          會議主題: data['會議主題'],
-          議題標題: topic.議題標題,
-          議題內容: topic.議題內容
+      // 議題跟待辦事項一次打包送出（一次 Apps Script 呼叫），不用一筆一筆等，速度快很多
+      const batchItems = [];
+      topicRows.forEach(topic => {
+        batchItems.push({
+          type: 'meetingTopic',
+          data: {
+            會議編號: meetingId,
+            會議主題: data['會議主題'],
+            議題標題: topic.議題標題,
+            議題內容: topic.議題內容
+          }
         });
-      }
-
-      for (const todo of todoRows) {
-        await apiPost('meetingTodo', {
-          會議編號: meetingId,
-          會議主題: data['會議主題'],
-          待辦事項內容: todo.待辦事項內容,
-          負責人: todo.負責人,
-          預計完成日: todo.預計完成日,
-          所屬專案: todo.所屬專案,
-          狀態: '未開始'
+      });
+      todoRows.forEach(todo => {
+        batchItems.push({
+          type: 'meetingTodo',
+          data: {
+            會議編號: meetingId,
+            會議主題: data['會議主題'],
+            待辦事項內容: todo.待辦事項內容,
+            負責人: todo.負責人,
+            預計完成日: todo.預計完成日,
+            所屬專案: todo.所屬專案,
+            狀態: '未開始'
+          }
         });
+      });
+      if (batchItems.length > 0) {
+        await apiPostBatch(batchItems);
       }
 
       msg.textContent = `✅ 已送出（會議編號：${meetingId}，議題 ${topicRows.length} 筆，待辦事項 ${todoRows.length} 筆）`;
@@ -3314,30 +3341,41 @@ function setupProjectForm() {
       }
       const projectId = projectRes.id;
 
-      for (const item of itemRows) {
-        await apiPost('projectItem', {
+      // 工作事項（跟長期性專案的12個月分潤結算，如果有）一次打包送出（一次 Apps Script 呼叫），不用一筆一筆等
+      const batchItems = itemRows.map(item => ({
+        type: 'projectItem',
+        data: {
           專案編號: projectId,
           專案名稱: data['專案名稱'],
           事項內容: item.事項內容,
           負責人: item.負責人,
           '進度(%)': item['進度(%)'],
           狀態: item.狀態
-        });
-      }
+        }
+      }));
 
       let incomeNote = '';
       if (incomeVisible && isLongTerm && fixedAmount && startMonth) {
         for (let i = 0; i < 12; i++) {
           const month = addMonths(startMonth, i);
-          await apiPost('projectSettlement', {
-            專案編號: projectId,
-            專案名稱: data['專案名稱'],
-            月份: month,
-            收入: fixedAmount
+          batchItems.push({
+            type: 'projectSettlement',
+            data: {
+              專案編號: projectId,
+              專案名稱: data['專案名稱'],
+              月份: month,
+              收入: fixedAmount
+            }
           });
         }
         incomeNote = '，已自動建立 12 個月的分潤結算';
-      } else if (incomeVisible && !isLongTerm && incomeAmount) {
+      }
+
+      if (batchItems.length > 0) {
+        await apiPostBatch(batchItems);
+      }
+
+      if (incomeVisible && !isLongTerm && incomeAmount) {
         await findOrCreateSettlement(projectId, data['專案名稱'], incomeMonth, incomeAmount);
         incomeNote = '，已登記收入';
       }
@@ -3539,6 +3577,15 @@ async function refreshLedgerAccountView() {
 
   renderLedgerTable(withBalance);
   populateLedgerMonthSelect(withBalance);
+  populateLedgerCategoryDatalist(rows);
+}
+
+// 「帳目類別」輸入建議：列出目前這個帳戶用過的所有類別，點一下就能選，不用每次重打；也還是可以自己輸入新的類別
+function populateLedgerCategoryDatalist(rows) {
+  const el = document.getElementById('ledger-category-list');
+  if (!el) return;
+  const names = [...new Set((rows || []).map(r => r['帳目類別']).filter(Boolean))];
+  el.innerHTML = names.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
 }
 
 function renderLedgerTable(withBalance) {
