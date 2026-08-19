@@ -113,6 +113,7 @@
       <select class="todo-owner partner-select"></select>
       <input type="date" class="todo-due" />
       <button type="button" class="todo-remove" title="刪除這筆">×</button>
+      <select class="todo-project project-name-select" title="所屬專案（選填）"></select>
     </div>
   </template>
 
@@ -140,17 +141,24 @@
   <section id="view-meeting-todo-list" class="view content-view">
     <div class="card">
       <h2>待辦事項清單</h2>
-      <label>篩選狀態
-        <select id="todo-status-filter">
-          <option value="">全部</option>
-          <option value="未開始">未開始</option>
-          <option value="進行中">進行中</option>
-          <option value="已完成">已完成</option>
-        </select>
-      </label>
+      <div class="field-grid">
+        <label>篩選狀態
+          <select id="todo-status-filter">
+            <option value="">全部</option>
+            <option value="未開始">未開始</option>
+            <option value="進行中">進行中</option>
+            <option value="已完成">已完成</option>
+          </select>
+        </label>
+        <label>篩選專案
+          <select id="todo-project-filter">
+            <option value="">全部</option>
+          </select>
+        </label>
+      </div>
       <ul class="hint-list">
-        <li>依「負責人」分類列出所有會議的待辦事項，每一筆都會標明是哪一場會議（日期＋主題）建立的，方便年底追蹤</li>
-        <li>可以用上面的篩選只看「未開始」「進行中」或「已完成」；預設顯示全部，還沒完成的排前面、已完成的排後面，逾期的項目會特別標示</li>
+        <li>依「負責人」分類列出所有會議的待辦事項，每一筆都會標明是哪一場會議（日期＋主題）建立的，方便年底追蹤，也會顯示「所屬專案」（新增待辦事項時可以選填）</li>
+        <li>可以用上面的篩選只看「未開始」「進行中」或「已完成」，也可以只看某個專案的待辦事項；預設顯示全部，還沒完成的排前面、已完成的排後面，逾期的項目會特別標示</li>
         <li>完成之後點「標記完成」，系統會自動記錄完成日期；項目不會消失，會留在清單裡當作紀錄。點錯了可以點「取消完成」改回來</li>
         <li>這裡的操作只會更新待辦事項自己的狀態，不會更動會議記錄本身的內容——會議記錄是年末績效考核用的歷史紀錄，會完整保留</li>
       </ul>
@@ -763,6 +771,23 @@
         <label class="full" id="ticket-store-field">所屬沙龍／店家<span class="optional-note">（購買類型是「店家購票」才需要填）</span>
           <input type="text" id="ticket-store-input" />
         </label>
+
+        <div class="full" id="ticket-buyer-field">
+          <div class="divider"></div>
+          <p class="hint" style="margin-top:0;">購買人資料（單人購買才需要填；一次幫多人買請切到下面「購買方式」各自填寫）：</p>
+          <div class="field-grid">
+            <label>購買人姓名
+              <input type="text" id="ticket-single-name" />
+            </label>
+            <label>聯絡電話<span class="optional-note">（選填）</span>
+              <input type="text" id="ticket-single-phone" />
+            </label>
+          </div>
+          <label>LINE ID<span class="optional-note">（選填）</span>
+            <input type="text" id="ticket-single-line" />
+          </label>
+        </div>
+
         <label class="full">備註<span class="optional-note">（選填）</span>
           <input type="text" id="ticket-note-input" />
         </label>
@@ -778,18 +803,7 @@
 
       <!-- 單人購買 -->
       <div id="ticket-single-block">
-        <label>購買人姓名
-          <input type="text" id="ticket-single-name" required />
-        </label>
-        <div class="field-grid">
-          <label>聯絡電話<span class="optional-note">（選填）</span>
-            <input type="text" id="ticket-single-phone" />
-          </label>
-          <label>LINE ID<span class="optional-note">（選填）</span>
-            <input type="text" id="ticket-single-line" />
-          </label>
-        </div>
-        <label>數量<span class="optional-note">（一次買好幾張同票種的票，金額跟購買堂數會自動倍增）</span>
+        <label>張數（數量）<span class="optional-note">（一次買好幾張同票種的票，金額跟購買堂數會自動倍增）</span>
           <input type="number" id="ticket-qty-input" min="1" step="1" value="1" />
         </label>
         <label>金額<span class="optional-note" id="ticket-amount-hint"></span>
@@ -809,7 +823,7 @@
 
       <!-- 一次幫多人買 -->
       <div id="ticket-multi-block" style="display:none;">
-        <p class="hint">上面「基本資料」（課程項目、身分、購買類型、所屬店家、購買日期、備註）大家共用；每一位學員各自的金額、購買堂數會用課程項目設定自動帶入，送出後會各自產生一筆獨立的售票紀錄。</p>
+        <p class="hint">上面「基本資料」（課程項目、身分、購買類型、所屬店家、購買日期、備註）大家共用；每一位學員自己的姓名、電話、LINE、張數都在下面各自填寫，送出後會各自產生一筆獨立的售票紀錄。</p>
         <div id="ticket-multi-rows"></div>
         <button type="button" class="secondary" id="ticket-multi-add-btn">＋ 再新增一位學員</button>
         <div class="submit-row">
@@ -829,11 +843,17 @@
     <div class="multi-row">
       <button type="button" class="remove-btn ticket-multi-remove" title="移除">✕</button>
       <div class="row-title"></div>
+      <div class="multi-sub">基本資料</div>
       <div class="field-grid">
         <label>姓名<input type="text" class="multi-name" required /></label>
         <label>聯絡電話<span class="optional-note">（選填）</span><input type="text" class="multi-phone" /></label>
       </div>
       <label>LINE ID<span class="optional-note">（選填）</span><input type="text" class="multi-line" /></label>
+      <div class="multi-sub">購買方式</div>
+      <div class="field-grid">
+        <label>張數（數量）<input type="number" class="multi-qty" min="1" step="1" value="1" /></label>
+        <label>購買堂數<input type="number" class="multi-lessons" min="1" step="1" /></label>
+      </div>
       <label class="full multi-teacher-field" style="display:none;">指定老師<span class="optional-note multi-teacher-counter"></span>
         <div class="teacher-checklist multi-teacher-box"></div>
       </label>
@@ -945,10 +965,10 @@
 
     <h4 class="modal-subhead">授課老師</h4>
     <p class="hint">在下面新增這個課程的授課老師（每個課程各自獨立，不會看到其他課程新增過的老師）。之後「上課紀錄」的師資、「售票登記」的指定老師，都只會列出這裡的人。</p>
-    <div class="teacher-checklist" id="course-teacher-box"></div>
-    <div class="add-attendee-row">
+    <div class="teacher-chip-list" id="course-teacher-box"></div>
+    <div class="add-teacher-row">
       <input type="text" id="course-new-teacher-input" placeholder="輸入新老師的名字，例如：Cathy 老師" />
-      <button type="button" class="secondary" id="course-add-teacher-btn">＋ 新增講師</button>
+      <button type="button" class="add-teacher-btn" id="course-add-teacher-btn">＋ 新增</button>
     </div>
     <div class="submit-row">
       <button type="button" class="primary" id="course-teacher-save-btn">儲存授課老師</button>

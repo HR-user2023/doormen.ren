@@ -97,7 +97,7 @@ const VIEW_DATA_TYPE = {
 const COLUMN_ORDER = {
   meeting: ['會議日期', '會議主題', '主持人', '缺席人員', '追蹤上次進度', '備註'],
   meetingTopic: ['會議主題', '議題標題', '議題內容', '備註'],
-  meetingTodo: ['會議主題', '待辦事項內容', '負責人', '預計完成日', '狀態', '備註'],
+  meetingTodo: ['會議主題', '待辦事項內容', '負責人', '預計完成日', '狀態', '所屬專案', '備註'],
   project: ['專案名稱', '專案類型', '主要負責人', '介紹人', '說明', '開始日期', '預計完成日', '備註'],
   projectItem: ['專案名稱', '事項內容', '負責人', '進度(%)', '狀態', '備註'],
   projectSettlement: ['專案名稱', '月份', '收入', '成本', '專案金額', '主要負責人分潤金額', '介紹人分潤金額', '公司利潤金額', '完成狀態', '放行狀態', '備註'],
@@ -148,6 +148,7 @@ const FIELD_META = {
     預計完成日: { type: 'date' },
     狀態: { type: 'select', options: ['未開始', '進行中', '已完成'] },
     完成日期: { type: 'date', optional: true },
+    所屬專案: { type: 'project', optional: true },
     備註: { type: 'text' }
   },
   project: {
@@ -608,6 +609,25 @@ async function loadInstructors() {
   }
 }
 
+// ---------- 專案名單：給「會議待辦事項」的「所屬專案」下拉選單用（選填，不指定也可以） ----------
+let projectNamesCache = [];
+
+function fillProjectSelect(sel) {
+  sel.innerHTML = '<option value="">不指定專案</option>' +
+    projectNamesCache.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+}
+
+async function loadProjectNames() {
+  try {
+    const res = await apiGet({ action: 'list', type: 'project' });
+    if (!res.ok) return;
+    projectNamesCache = (res.data || []).map(p => p['專案名稱']).filter(Boolean);
+    document.querySelectorAll('select.project-name-select').forEach(fillProjectSelect);
+  } catch (err) {
+    console.error('讀取專案名單失敗', err);
+  }
+}
+
 // ---------- 品項/專案名稱建議清單 ----------
 async function loadDatalist(type, field, elementId) {
   try {
@@ -735,7 +755,7 @@ async function openCourseDetail(course) {
   await renderTicketTypeList(courseName);
 }
 
-// 授課老師勾選清單：只顯示「這個課程自己新增過」的老師，不會看到其他課程新增過的講師
+// 授課老師標籤（chip）清單：只顯示「這個課程自己新增過」的老師，不會看到其他課程新增過的講師
 // （名字還是會存進共用的「講師名單」分頁，只是畫面上每個課程各自獨立顯示）
 let courseTeacherWorkingList = []; // 目前這個課程設定視窗裡看得到的老師名字
 
@@ -748,14 +768,22 @@ function renderCourseTeacherBox(selectedNames) {
     return;
   }
   box.innerHTML = courseTeacherWorkingList.map(n => `
-    <label>
-      <input type="checkbox" class="course-teacher-cb" value="${escapeHtml(n)}" checked />
-      <span>${escapeHtml(n)}</span>
-    </label>
+    <span class="teacher-chip" data-name="${escapeHtml(n)}">${escapeHtml(n)}<button type="button" class="chip-remove" title="移除這位老師">×</button></span>
   `).join('');
+  box.querySelectorAll('.chip-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.closest('.teacher-chip').dataset.name;
+      renderCourseTeacherBox(courseTeacherWorkingList.filter(n => n !== name));
+      const msg = document.getElementById('course-teacher-msg');
+      if (msg) {
+        msg.textContent = '已移除「' + name + '」，記得按下面「儲存授課老師」套用';
+        msg.className = 'status-msg';
+      }
+    });
+  });
 }
 
-// 直接在課程設定彈窗裡輸入名字，新增一位講師（存到「講師名單」，跟夥伴名單無關），新增後自動勾選
+// 直接在課程設定彈窗裡輸入名字，新增一位講師（存到「講師名單」，跟夥伴名單無關），新增後自動變成標籤
 // 只會出現在「這個課程」的清單裡；如果這個名字之前已經在別的課程新增過，就不會重複寫進「講師名單」分頁
 async function addCourseTeacherInline() {
   const input = document.getElementById('course-new-teacher-input');
@@ -783,9 +811,7 @@ async function addCourseTeacherInline() {
       }
     }
     if (ok) {
-      const currentlyChecked = Array.from(document.querySelectorAll('#course-teacher-box .course-teacher-cb:checked')).map(cb => cb.value);
-      currentlyChecked.push(name);
-      renderCourseTeacherBox(currentlyChecked);
+      renderCourseTeacherBox(courseTeacherWorkingList.concat([name]));
       input.value = '';
       msg.textContent = '✅ 已新增講師「' + name + '」，記得按下面「儲存授課老師」套用到這個課程';
       msg.className = 'status-msg ok';
@@ -797,12 +823,12 @@ async function addCourseTeacherInline() {
   }
 }
 
-// 儲存這個課程勾選的授課老師（存回「課程」分頁的「授課老師」欄位，多位用頓號分開）
+// 儲存這個課程目前的授課老師標籤（存回「課程」分頁的「授課老師」欄位，多位用頓號分開）
 async function saveCourseTeachers() {
   if (!courseDetailCurrent) return;
   const btn = document.getElementById('course-teacher-save-btn');
   const msg = document.getElementById('course-teacher-msg');
-  const names = Array.from(document.querySelectorAll('#course-teacher-box .course-teacher-cb:checked')).map(cb => cb.value);
+  const names = courseTeacherWorkingList.slice();
   btn.disabled = true;
   msg.textContent = '儲存中…';
   msg.className = 'status-msg';
@@ -937,6 +963,7 @@ function updateTicketComboFields() {
     ticketBaseLessons = 0;
     renderTicketTeacherBox(0, '');
     refreshAllMultiRowTeacherBoxes();
+    refreshAllMultiRowQty();
     return;
   }
   const amt = identitySel.value === '非會員' ? item['非會員金額'] : item['會員金額'];
@@ -946,6 +973,7 @@ function updateTicketComboFields() {
   if (hint) hint.textContent = `（會員 ${item['會員金額'] || 0}／非會員 ${item['非會員金額'] || 0}，共${item['堂數'] || 0}堂）`;
   renderTicketTeacherBox(Number(item['可指定老師人數']) || 0, item['課程名稱'] || '');
   refreshAllMultiRowTeacherBoxes();
+  refreshAllMultiRowQty();
 }
 
 // 數量改變時，金額跟購買堂數都以「單張」為基準乘上數量（單人購買才用得到）
@@ -1035,6 +1063,19 @@ function refreshAllMultiRowTeacherBoxes() {
   document.querySelectorAll('#ticket-multi-rows .multi-row').forEach(renderMultiRowTeacherBox);
 }
 
+// 這一列的「張數」改變時，購買堂數以「單張」為基準乘上張數（跟單人購買的 applyTicketQty 邏輯一樣，但只影響這一列）
+function applyMultiRowQty(rowEl) {
+  const qtyInput = rowEl.querySelector('.multi-qty');
+  const lessonsInput = rowEl.querySelector('.multi-lessons');
+  if (!qtyInput || !lessonsInput) return;
+  const qty = Math.max(1, Number(qtyInput.value) || 1);
+  lessonsInput.value = ticketBaseLessons * qty;
+}
+
+function refreshAllMultiRowQty() {
+  document.querySelectorAll('#ticket-multi-rows .multi-row').forEach(applyMultiRowQty);
+}
+
 // ---------- 售票登記：一次幫多人買，動態新增／移除學員列 ----------
 let ticketMultiRowCount = 0;
 
@@ -1047,8 +1088,11 @@ function addTicketMultiRow() {
     node.remove();
     renumberTicketMultiRows();
   });
+  const qtyInput = node.querySelector('.multi-qty');
+  if (qtyInput) qtyInput.addEventListener('input', () => applyMultiRowQty(node));
   document.getElementById('ticket-multi-rows').appendChild(node);
   renderMultiRowTeacherBox(node);
+  applyMultiRowQty(node);
   return node;
 }
 
@@ -1070,6 +1114,9 @@ function setTicketMode(mode) {
   document.getElementById('ticket-mode-multi-btn').classList.toggle('active', mode === 'multi');
   document.getElementById('ticket-single-block').style.display = mode === 'single' ? '' : 'none';
   document.getElementById('ticket-multi-block').style.display = mode === 'multi' ? '' : 'none';
+  // 購買人姓名/電話/LINE 只有單人購買才需要（多人購買每位學員各自在下面填），多人模式時把「基本資料」裡這一區塊隱藏
+  const buyerField = document.getElementById('ticket-buyer-field');
+  if (buyerField) buyerField.style.display = mode === 'single' ? '' : 'none';
 }
 
 function updateTicketStoreFieldVisibility() {
@@ -1169,11 +1216,13 @@ async function submitTicketMulti() {
     if (!name) return;
     const phone = row.querySelector('.multi-phone').value;
     const line = row.querySelector('.multi-line').value;
+    const qty = Math.max(1, Number(row.querySelector('.multi-qty').value) || 1);
+    const lessons = row.querySelector('.multi-lessons').value;
     const teacherBox = row.querySelector('.multi-teacher-box');
     const teachers = teacherBox
       ? Array.from(teacherBox.querySelectorAll('.multi-teacher-cb:checked')).map(cb => cb.value)
       : [];
-    entries.push({ name, phone, line, teachers });
+    entries.push({ name, phone, line, qty, lessons, teachers });
   });
   if (entries.length === 0) {
     msg.textContent = '❌ 請至少填一位學員的姓名';
@@ -1195,8 +1244,8 @@ async function submitTicketMulti() {
       購買人: entry.name,
       聯絡電話: entry.phone,
       'LINE ID': entry.line,
-      金額: unitAmount,
-      購買堂數: item['堂數'],
+      金額: (Number(unitAmount) || 0) * entry.qty,
+      購買堂數: entry.lessons,
       指定老師: entry.teachers.join('、')
     });
     try {
@@ -1281,6 +1330,8 @@ function addDynamicRow(templateId, containerId) {
   const node = tmpl.content.firstElementChild.cloneNode(true);
   const ownerSelect = node.querySelector('.partner-select');
   if (ownerSelect) fillPartnerSelect(ownerSelect);
+  const projectSelect = node.querySelector('.project-name-select');
+  if (projectSelect) fillProjectSelect(projectSelect);
   node.querySelector('.todo-remove').addEventListener('click', () => node.remove());
   document.getElementById(containerId).appendChild(node);
   return node;
@@ -1297,7 +1348,9 @@ function collectTodoRows() {
     const content = row.querySelector('.todo-content').value.trim();
     const owner = row.querySelector('.todo-owner').value;
     const due = row.querySelector('.todo-due').value;
-    if (content) rows.push({ 待辦事項內容: content, 負責人: owner, 預計完成日: due });
+    const projectSel = row.querySelector('.todo-project');
+    const project = projectSel ? projectSel.value : '';
+    if (content) rows.push({ 待辦事項內容: content, 負責人: owner, 預計完成日: due, 所屬專案: project });
   });
   return rows;
 }
@@ -1363,6 +1416,9 @@ function openEditModal(type, row, onSaved) {
     if (m.type === 'instructor') {
       return `<label>${label}<select name="${escapeHtml(field)}" class="instructor-select" data-current="${escapeHtml(rawVal)}"></select></label>`;
     }
+    if (m.type === 'project') {
+      return `<label>${label}<select name="${escapeHtml(field)}" class="project-name-select" data-current="${escapeHtml(rawVal)}"></select></label>`;
+    }
     if (m.type === 'number') {
       return `<label>${label}<input type="number" name="${escapeHtml(field)}" value="${escapeHtml(rawVal)}" /></label>`;
     }
@@ -1385,6 +1441,11 @@ function openEditModal(type, row, onSaved) {
   });
   form.querySelectorAll('select.instructor-select').forEach(sel => {
     fillInstructorSelect(sel);
+    const cur = sel.dataset.current;
+    if (cur) sel.value = cur;
+  });
+  form.querySelectorAll('select.project-name-select').forEach(sel => {
+    fillProjectSelect(sel);
     const cur = sel.dataset.current;
     if (cur) sel.value = cur;
   });
@@ -2483,6 +2544,7 @@ const meetingTodoListCache = { meetings: [], todos: [] };
 async function loadMeetingTodoListData() {
   const container = document.getElementById('meeting-todo-list-container');
   const filterSel = document.getElementById('todo-status-filter');
+  const projectFilterSel = document.getElementById('todo-project-filter');
   if (!container) return;
   container.innerHTML = '<p class="hint">載入中…</p>';
   try {
@@ -2501,6 +2563,11 @@ async function loadMeetingTodoListData() {
       filterSel.addEventListener('change', renderMeetingTodoList);
       filterSel.dataset.wired = '1';
     }
+    if (projectFilterSel && !projectFilterSel.dataset.wired) {
+      projectFilterSel.addEventListener('change', renderMeetingTodoList);
+      projectFilterSel.dataset.wired = '1';
+    }
+    populateTodoProjectFilterOptions();
     renderMeetingTodoList();
   } catch (err) {
     container.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
@@ -2508,11 +2575,31 @@ async function loadMeetingTodoListData() {
   }
 }
 
+// 篩選專案的下拉選單：只列出「實際被待辦事項用過」的專案名稱，加上「未指定專案」（如果有任何一筆沒選專案）
+function populateTodoProjectFilterOptions() {
+  const sel = document.getElementById('todo-project-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const names = new Set();
+  let hasUnassigned = false;
+  meetingTodoListCache.todos.forEach(t => {
+    const p = (t['所屬專案'] || '').trim();
+    if (p) names.add(p); else hasUnassigned = true;
+  });
+  const sortedNames = Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  sel.innerHTML = '<option value="">全部</option>' +
+    sortedNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('') +
+    (hasUnassigned ? '<option value="__none__">未指定專案</option>' : '');
+  if (Array.from(sel.options).some(o => o.value === current)) sel.value = current;
+}
+
 function renderMeetingTodoList() {
   const container = document.getElementById('meeting-todo-list-container');
   const filterSel = document.getElementById('todo-status-filter');
+  const projectFilterSel = document.getElementById('todo-project-filter');
   if (!container) return;
   const filter = filterSel ? filterSel.value : '';
+  const projectFilter = projectFilterSel ? projectFilterSel.value : '';
 
   const meetingMap = {};
   meetingTodoListCache.meetings.forEach(m => { meetingMap[m['編號']] = m; });
@@ -2522,7 +2609,12 @@ function renderMeetingTodoList() {
     return;
   }
 
-  const visibleTodos = filter ? meetingTodoListCache.todos.filter(t => (t['狀態'] || '未開始') === filter) : meetingTodoListCache.todos;
+  let visibleTodos = filter ? meetingTodoListCache.todos.filter(t => (t['狀態'] || '未開始') === filter) : meetingTodoListCache.todos;
+  if (projectFilter === '__none__') {
+    visibleTodos = visibleTodos.filter(t => !(t['所屬專案'] || '').trim());
+  } else if (projectFilter) {
+    visibleTodos = visibleTodos.filter(t => (t['所屬專案'] || '').trim() === projectFilter);
+  }
   if (visibleTodos.length === 0) {
     container.innerHTML = '<p class="hint">沒有符合篩選條件的待辦事項。</p>';
     return;
@@ -2538,7 +2630,7 @@ function renderMeetingTodoList() {
 
   container.innerHTML = owners.map(owner => {
     const openCount = groups[owner].filter(t => t['狀態'] !== '已完成').length;
-    const countLabel = filter ? `共 ${groups[owner].length} 筆` : `共 ${groups[owner].length} 筆，還在進行中 ${openCount} 筆`;
+    const countLabel = (filter || projectFilter) ? `共 ${groups[owner].length} 筆` : `共 ${groups[owner].length} 筆，還在進行中 ${openCount} 筆`;
     // 還沒完成的排前面（依預計完成日，快到期的優先）；已完成的排後面（依完成日期，最近完成的優先）
     const items = groups[owner].slice().sort((a, b) => {
       const aDone = a['狀態'] === '已完成';
@@ -2559,7 +2651,7 @@ function renderMeetingTodoList() {
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>建立日期（會議日期）</th><th>會議主題</th><th>待辦事項</th><th>預計完成日</th><th>狀態</th><th>完成日期</th><th>操作</th></tr>
+              <tr><th>建立日期（會議日期）</th><th>會議主題</th><th>待辦事項</th><th>所屬專案</th><th>預計完成日</th><th>狀態</th><th>完成日期</th><th>操作</th></tr>
             </thead>
             <tbody>
               ${items.map(t => {
@@ -2567,6 +2659,7 @@ function renderMeetingTodoList() {
                 const due = t['預計完成日'] || '';
                 const done = t['狀態'] === '已完成';
                 const overdue = !done && due && due < today;
+                const projectName = (t['所屬專案'] || '').trim();
                 const actionHtml = done
                   ? `<button type="button" class="secondary btn-complete-todo" data-todo-id="${escapeHtml(t['編號'])}" data-decision="進行中">取消完成</button>`
                   : `<button type="button" class="secondary btn-complete-todo" data-todo-id="${escapeHtml(t['編號'])}" data-decision="已完成">標記完成</button>`;
@@ -2574,6 +2667,7 @@ function renderMeetingTodoList() {
                   <td>${escapeHtml(meeting['會議日期'] || '')}</td>
                   <td>${escapeHtml(meeting['會議主題'] || '')}</td>
                   <td>${escapeHtml(t['待辦事項內容'] || '')}</td>
+                  <td>${projectName ? tagHtml(projectName) : '<span class="hint">未指定</span>'}</td>
                   <td>${escapeHtml(due)}${overdue ? ' <span class="overdue-note">已逾期</span>' : ''}</td>
                   <td>${tagHtml(t['狀態'])}</td>
                   <td>${escapeHtml(t['完成日期'] || '-')}</td>
@@ -3107,6 +3201,7 @@ function setupMeetingForm() {
           待辦事項內容: todo.待辦事項內容,
           負責人: todo.負責人,
           預計完成日: todo.預計完成日,
+          所屬專案: todo.所屬專案,
           狀態: '未開始'
         });
       }
@@ -3255,6 +3350,7 @@ function setupProjectForm() {
       loadDocList('project');
       loadProjectTrackList();
       populateSettlementProjectSelect();
+      loadProjectNames();
     } catch (err) {
       msg.textContent = '❌ 送出失敗，請確認設定或網路連線';
       msg.className = 'status-msg error';
@@ -3834,6 +3930,7 @@ async function init() {
 
   loadPartners();
   loadInstructors();
+  loadProjectNames();
   loadDatalist('inventory', '品項名稱', 'inventory-name-list');
   populateSettlementProjectSelect();
   populateExpenseItemProjectSelect();

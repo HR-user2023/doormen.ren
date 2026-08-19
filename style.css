@@ -331,6 +331,8 @@ button.secondary {
   align-items: center;
 }
 
+.todo-row .todo-project { grid-column: 1 / -1; margin-top: 2px; }
+
 .todo-row .todo-remove {
   border: none;
   background: #FBE7E5;
@@ -725,6 +727,50 @@ table.cat-table td.amt.out { color: var(--danger); }
 }
 .multi-row label { margin-top: 8px; }
 .multi-row .field-grid { margin-top: 0; }
+.multi-sub { font-size: 0.74rem; color: var(--muted); margin: 10px 0 4px; font-weight: 600; letter-spacing: 0.02em; }
+.multi-row .multi-sub:first-of-type { margin-top: 0; }
+
+/* ---- 售票登記：基本資料卡片裡的購買人資料區塊分隔線 ---- */
+.divider { border-top: 1px dashed var(--border); margin: 14px 0; }
+
+/* ---- 課程設定彈窗：授課老師改成標籤（chip）樣式，新增後直接變標籤，按 × 移除 ---- */
+.teacher-chip-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 12px; min-height: 20px; }
+.teacher-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #EFEFEF;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 6px 6px 14px;
+  font-size: 0.85rem;
+  color: var(--primary-dark);
+}
+.chip-remove {
+  border: none;
+  background: #fff;
+  color: var(--muted);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 0.85rem;
+  padding: 0;
+}
+.chip-remove:hover { background: #FBE7E5; color: var(--danger); }
+.add-teacher-row { display: flex; gap: 8px; }
+.add-teacher-row input { flex: 1; padding: 9px 12px; border-radius: 999px; }
+.add-teacher-btn {
+  border: none;
+  background: var(--primary-dark);
+  color: #fff;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
 
 /* ---- 課程設定彈窗：授課老師區塊跟票種設定區塊的分隔標題 ---- */
 .modal-subhead {
