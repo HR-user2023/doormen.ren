@@ -69,9 +69,11 @@ const CATEGORIES = [
 ];
 
 // ---------- 記帳：四個銀行帳戶各自一張分頁，欄位完全一致 ----------
+// sessionBreakdown: true 的帳戶，「本月收支總覽」才會多顯示「各場次別小計」（依「場次別」欄位分組）。
+// 市集是擺攤場次，教育可以拿來填課程名稱，選品店／門人用不到這個分組，所以不顯示。
 const LEDGER_ACCOUNTS = [
-  { key: 'market', label: '市集', type: 'ledgerMarket' },
-  { key: 'edu', label: '教育', type: 'ledgerEdu' },
+  { key: 'market', label: '市集', type: 'ledgerMarket', sessionBreakdown: true },
+  { key: 'edu', label: '教育', type: 'ledgerEdu', sessionBreakdown: true },
   { key: 'shop', label: '選品店', type: 'ledgerShop' },
   { key: 'door', label: '門人', type: 'ledgerDoor' }
 ];
@@ -3715,8 +3717,77 @@ function populateLedgerMonthSelect(withBalance) {
 // 「本月收支總覽」最後一次算好的結果，給「存檔到 Google Sheet」按鈕用，不用重新算一次
 let ledgerLastOverview = null;
 
+// 「各場次別小計」：依「場次別」欄位分組（市集是擺攤場次、教育可以填課程名稱），
+// 每個場次點開可以再看這個場次裡各帳目類別的收入支出明細。沒填「場次別」的記錄統一歸在「未填場次別」。
+function renderLedgerSessionBreakdown(monthRows) {
+  const sessions = {};
+  monthRows.forEach(r => {
+    const inc = Number(r['收入']) || 0;
+    const out = Number(r['支出']) || 0;
+    const session = r['場次別'] || '未填場次別';
+    if (!sessions[session]) sessions[session] = { in: 0, out: 0, cats: {} };
+    sessions[session].in += inc;
+    sessions[session].out += out;
+    const cat = r['帳目類別'] || '（未分類）';
+    if (!sessions[session].cats[cat]) sessions[session].cats[cat] = { in: 0, out: 0 };
+    sessions[session].cats[cat].in += inc;
+    sessions[session].cats[cat].out += out;
+  });
+
+  const sortedSessions = Object.keys(sessions).sort((a, b) => {
+    // 「未填場次別」固定排最後面，其餘依收入+支出總額由大到小排
+    if (a === '未填場次別') return 1;
+    if (b === '未填場次別') return -1;
+    return (sessions[b].in + sessions[b].out) - (sessions[a].in + sessions[a].out);
+  });
+
+  if (sortedSessions.length === 0) return '';
+
+  const rows = sortedSessions.map((session, idx) => {
+    const s = sessions[session];
+    const catRows = Object.keys(s.cats).sort((a, b) => (s.cats[b].in + s.cats[b].out) - (s.cats[a].in + s.cats[a].out)).map(cat => `
+        <tr>
+          <td>${escapeHtml(cat)}</td>
+          <td class="amt in">${s.cats[cat].in ? s.cats[cat].in.toLocaleString() : '-'}</td>
+          <td class="amt out">${s.cats[cat].out ? s.cats[cat].out.toLocaleString() : '-'}</td>
+        </tr>
+      `).join('');
+    return `
+      <details class="session-item" ${idx === 0 ? 'open' : ''}>
+        <summary>
+          <span class="session-name">${escapeHtml(session)}</span>
+          <span class="session-amt in">${s.in ? s.in.toLocaleString() : '-'}</span>
+          <span class="session-amt out">${s.out ? s.out.toLocaleString() : '-'}</span>
+          <span class="session-amt balance">${(s.in - s.out).toLocaleString()}</span>
+        </summary>
+        <div class="session-sub-table">
+          <table>
+            <thead><tr><th>帳目類別</th><th>收入</th><th>支出</th></tr></thead>
+            <tbody>${catRows}</tbody>
+          </table>
+        </div>
+      </details>
+    `;
+  }).join('');
+
+  return `
+    <details class="cat-detail" open>
+      <summary>各場次別小計（點可收合）</summary>
+      <div class="session-list-head">
+        <span></span>
+        <span class="session-col-label">收入</span>
+        <span class="session-col-label">支出</span>
+        <span class="session-col-label">結餘</span>
+      </div>
+      <div class="session-list">${rows}</div>
+      <p class="hint">每一列是一個「場次」（記帳時填的「場次別」），點開可以看這個場次裡各帳目類別的收入支出明細；沒有填「場次別」的記錄會統一歸在「未填場次別」這一列。</p>
+    </details>
+  `;
+}
+
 function renderLedgerOverview(withBalance, month) {
   const box = document.getElementById('ledger-overview-content');
+  const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
   const monthRows = withBalance.filter(r => ledgerEffectiveMonth(r) === month && r['帳目類別'] !== '前月餘額');
 
   let totalIn = 0, totalOut = 0;
@@ -3745,6 +3816,8 @@ function renderLedgerOverview(withBalance, month) {
       </tr>
     `).join('');
 
+  const sessionHtml = account.sessionBreakdown ? renderLedgerSessionBreakdown(monthRows) : '';
+
   box.innerHTML = `
     <div class="ledger-big-numbers">
       <div class="box in"><div class="label">收入</div><div class="value">${totalIn.toLocaleString()}</div></div>
@@ -3761,9 +3834,9 @@ function renderLedgerOverview(withBalance, month) {
         <p class="hint">「支出佔收入%」是這個類別的支出，佔當月總收入的比例，方便看哪個項目花費比重比較大；當月沒有收入的話會顯示「-」。</p>
       </details>
     ` : '<p class="hint">這個月沒有記帳記錄。</p>'}
+    ${sessionHtml}
   `;
 
-  const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
   ledgerLastOverview = {
     account: account.label,
     month,

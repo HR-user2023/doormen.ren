@@ -686,6 +686,61 @@ table.cat-table td.amt { text-align: right; font-variant-numeric: tabular-nums; 
 table.cat-table td.amt.in { color: var(--ok); }
 table.cat-table td.amt.out { color: var(--danger); }
 
+/* ---- 「本月收支總覽」各場次別小計（市集擺攤場次、教育課程名稱） ---- */
+.session-list-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  margin-top: 10px;
+}
+.session-list-head span:first-child { flex: 1 1 auto; }
+.session-list-head .session-col-label { flex: 0 0 76px; font-size: 0.72rem; color: var(--muted); text-align: right; }
+.session-list-head .session-col-label:last-child { flex-basis: 86px; }
+
+.session-list { margin-top: 6px; display: flex; flex-direction: column; gap: 8px; }
+
+details.session-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #FAFAFA;
+  overflow: hidden;
+}
+details.session-item > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+}
+details.session-item > summary::-webkit-details-marker { display: none; }
+details.session-item > summary::before { content: "▸ "; color: var(--muted); }
+details.session-item[open] > summary::before { content: "▾ "; }
+details.session-item[open] > summary { border-bottom: 1px solid var(--border); }
+
+.session-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.session-amt { flex: 0 0 76px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.84rem; }
+.session-amt.balance { flex-basis: 86px; color: var(--primary-dark); font-weight: 600; }
+.session-amt.in { color: var(--ok); }
+.session-amt.out { color: var(--danger); }
+
+.session-sub-table { padding: 10px 12px 12px; }
+.session-sub-table table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.session-sub-table th, .session-sub-table td { padding: 5px 4px; text-align: left; border-bottom: 1px dashed var(--border); }
+.session-sub-table th { color: var(--muted); font-weight: 600; font-size: 0.74rem; }
+.session-sub-table td.amt { text-align: right; font-variant-numeric: tabular-nums; }
+.session-sub-table td.amt.in { color: var(--ok); }
+.session-sub-table td.amt.out { color: var(--danger); }
+
+@media (max-width: 420px) {
+  details.session-item > summary { flex-wrap: wrap; row-gap: 6px; }
+  .session-name { flex-basis: 100%; white-space: normal; }
+  .session-amt { flex: 1 1 0; }
+  .session-list-head { display: none; }
+}
+
 /* 「本月收支總覽」存成 PDF：畫面上平常隱藏，只有在列印／存成PDF時才會顯示這個標題 */
 .print-only { display: none; }
 
