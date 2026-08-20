@@ -662,8 +662,12 @@
             <div class="combo-list" id="ledger-category-options"></div>
           </div>
         </label>
-        <label>場次別<span class="optional-note">（選填，市集可填擺攤場次、教育可填課程名稱，會用來統計「本月收支總覽」的各場次小計）</span>
-          <input type="text" name="場次別" placeholder="例如：8/2 大安公園市集、瑜珈班" />
+        <label>場次別<span class="optional-note">（選填，市集可填擺攤場次、教育可填課程名稱，會用來統計「本月收支總覽」的各場次小計；點右邊▾可以選之前填過的）</span>
+          <div class="combo-wrap" id="ledger-session-combo">
+            <input type="text" name="場次別" id="ledger-session-input" placeholder="例如：8/2 大安公園市集、瑜珈班" autocomplete="off" />
+            <button type="button" class="combo-toggle" id="ledger-session-toggle" aria-label="選擇場次別">▾</button>
+            <div class="combo-list" id="ledger-session-options"></div>
+          </div>
         </label>
         <label>項目明細
           <input type="text" name="項目明細" required />
