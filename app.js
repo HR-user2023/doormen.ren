@@ -3782,7 +3782,7 @@ function renderLedgerSessionBreakdown(monthRows) {
 
   return `
     <details class="cat-detail" open>
-      <summary>各場次別小計（點可收合）</summary>
+      <summary>各場次別小計（全部時間，不限本月份／點可收合）</summary>
       <div class="session-list-head">
         <span></span>
         <span class="session-col-label">收入</span>
@@ -3790,7 +3790,7 @@ function renderLedgerSessionBreakdown(monthRows) {
         <span class="session-col-label">結餘</span>
       </div>
       <div class="session-list">${rows}</div>
-      <p class="hint">每一列是一個「場次」（記帳時填的「場次別」），點開可以看這個場次裡各帳目類別的收入支出明細；沒有填「場次別」的記錄會統一歸在「未填場次別」這一列。</p>
+      <p class="hint">每一列是一個「場次」（記帳時填的「場次別」），點開可以看這個場次裡各帳目類別的收入支出明細；沒有填「場次別」的記錄會統一歸在「未填場次別」這一列。這裡是這個帳戶「全部時間」的加總，不受上面選的月份影響（上面「各帳目類別小計」還是只算選到的那個月）。</p>
     </details>
   `;
 }
@@ -3826,7 +3826,9 @@ function renderLedgerOverview(withBalance, month) {
       </tr>
     `).join('');
 
-  const sessionHtml = account.sessionBreakdown ? renderLedgerSessionBreakdown(monthRows) : '';
+  // 「各場次別小計」不受目前選的月份影響，永遠列出這個帳戶「全部時間」的場次資料（同一堂課、同一個場次常常橫跨好幾個月）
+  const allTimeRows = withBalance.filter(r => r['帳目類別'] !== '前月餘額');
+  const sessionHtml = account.sessionBreakdown ? renderLedgerSessionBreakdown(allTimeRows) : '';
 
   box.innerHTML = `
     <div class="ledger-big-numbers">
