@@ -631,6 +631,12 @@ button.secondary {
   height: 18px;
   padding: 0;
 }
+.fee-amount-input {
+  width: 3.5em;
+  display: inline-block;
+  padding: 2px 6px;
+  margin: 0 2px;
+}
 
 .month-row {
   display: flex;

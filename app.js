@@ -77,6 +77,11 @@ const LEDGER_ACCOUNTS = [
   { key: 'shop', label: '選品店', type: 'ledgerShop' },
   { key: 'door', label: '門人', type: 'ledgerDoor' }
 ];
+
+// 這些帳目類別記的是帳戶之間互相調度／回補的資金（不是真正的營收），例如門人帳戶先墊付物料貨款、之後其他帳戶再匯錢回補。
+// 這種錢會影響「帳戶餘額」（是真實進出的錢，帳戶餘額照算），但算「支出佔收入%」時不該當成收入墊高分母，
+// 不然會讓其他類別的佔比看起來比實際小，所以「各帳目類別小計」算百分比時會把這些類別的收入另外扣掉。
+const LEDGER_NON_REVENUE_CATEGORIES = ['物料貨款調度'];
 const LEDGER_TYPE_BY_KEY = {};
 LEDGER_ACCOUNTS.forEach(a => { LEDGER_TYPE_BY_KEY[a.key] = a.type; });
 let ledgerCurrentAccountKey = LEDGER_ACCOUNTS[0].key;
@@ -3800,21 +3805,24 @@ function renderLedgerOverview(withBalance, month) {
   const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
   const monthRows = withBalance.filter(r => ledgerEffectiveMonth(r) === month && r['帳目類別'] !== '前月餘額');
 
-  let totalIn = 0, totalOut = 0;
+  let totalIn = 0, totalOut = 0, totalInForPct = 0;
   const cats = {};
   monthRows.forEach(r => {
     const inc = Number(r['收入']) || 0;
     const out = Number(r['支出']) || 0;
+    const cat = r['帳目類別'] || '（未分類）';
     totalIn += inc;
     totalOut += out;
-    const cat = r['帳目類別'] || '（未分類）';
+    // 「帳戶調度／回補」這類錢是真實進出帳戶的錢，收入／支出（跟帳戶餘額）照算；只有算「支出佔收入%」的分母時才排除，避免墊高分母
+    if (!LEDGER_NON_REVENUE_CATEGORIES.includes(cat)) totalInForPct += inc;
     if (!cats[cat]) cats[cat] = { in: 0, out: 0 };
     cats[cat].in += inc;
     cats[cat].out += out;
   });
 
-  // 每個支出類別佔當月總收入的比例（例如人員薪資佔收入 7.2%），沒有收入的月份就顯示 - ，不會除以 0
-  const pctOfIncome = out => (totalIn > 0 && out > 0) ? (out / totalIn * 100).toFixed(1) + '%' : '-';
+  // 每個支出類別佔當月「真正收入」的比例（例如人員薪資佔收入 7.2%），分母已經扣掉調度／回補這類非營收的錢；
+  // 沒有真正收入的月份就顯示 - ，不會除以 0
+  const pctOfIncome = out => (totalInForPct > 0 && out > 0) ? (out / totalInForPct * 100).toFixed(1) + '%' : '-';
 
   const sortedCats = Object.keys(cats).sort((a, b) => (cats[b].in + cats[b].out) - (cats[a].in + cats[a].out));
   const catRows = sortedCats.map(cat => `
@@ -3843,7 +3851,7 @@ function renderLedgerOverview(withBalance, month) {
           <thead><tr><th>帳目類別</th><th>收入</th><th>支出</th><th>支出佔收入%</th></tr></thead>
           <tbody>${catRows}</tbody>
         </table>
-        <p class="hint">「支出佔收入%」是這個類別的支出，佔當月總收入的比例，方便看哪個項目花費比重比較大；當月沒有收入的話會顯示「-」。</p>
+        <p class="hint">「支出佔收入%」是這個類別的支出，佔當月「真正收入」的比例，方便看哪個項目花費比重比較大；當月沒有真正收入的話會顯示「-」（像「${escapeHtml(LEDGER_NON_REVENUE_CATEGORIES.join('、'))}」這種帳戶之間互相調度、回補的錢，不算是真正收入，不會列入這個比例的分母，但「收入」欄位本身跟上面的帳戶餘額還是照實際金額算）。</p>
       </details>
     ` : '<p class="hint">這個月沒有記帳記錄。</p>'}
     ${sessionHtml}
@@ -3865,16 +3873,42 @@ function renderLedgerOverview(withBalance, month) {
   if (printTitle) printTitle.textContent = `${account.label}帳戶　${month.replace('-', ' 年 ')} 月　本月收支總覽`;
 }
 
+const LEDGER_FEE_CATEGORY = '轉帳手續費'; // 跟使用者原本自己記帳時用的帳目類別名稱一致，這樣「各帳目類別小計」才會自動把它加總在一起
+
+// 「轉帳手續費」勾選框：勾選之後，送出記帳時會「多送一筆」帳目類別＝「轉帳手續費」的獨立記錄（金額欄位可以自己改，預設15元）。
+// 這樣手續費會單獨算成一個帳目類別，「本月收支總覽」的「各帳目類別小計」就會自動幫忙加總，不用改 Code.gs、不用新增欄位。
+function setupLedgerFeeCheckbox() {
+  const checkbox = document.getElementById('ledger-fee-checkbox');
+  const feeInput = document.getElementById('ledger-fee-amount-input');
+  if (!checkbox || !feeInput) return;
+
+  checkbox.addEventListener('change', () => { feeInput.disabled = !checkbox.checked; });
+  feeInput.disabled = true; // 一開始沒勾選，金額欄位先鎖住，避免誤會成已經套用
+
+  // 送出成功後表單會 reset()，這裡的勾選狀態也要跟著重置，避免誤帶到下一筆記帳
+  document.getElementById('ledger-form').addEventListener('reset', () => {
+    checkbox.checked = false;
+    feeInput.disabled = true;
+    feeInput.value = 15;
+  });
+}
+
 function setupLedgerForm() {
   const form = document.getElementById('ledger-form');
   setupLedgerCombos();
+  setupLedgerFeeCheckbox();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('button[type="submit"]');
     const msg = form.querySelector('.status-msg');
     const data = {};
     new FormData(form).forEach((value, key) => { data[key] = value; });
-    form.querySelectorAll('input[type="checkbox"]').forEach(cb => { data[cb.name] = cb.checked ? 'TRUE' : 'FALSE'; });
+    // 只收集有 name 的 checkbox（「轉帳手續費」的勾選只是輔助觸發用，沒有 name，不用送出去存）
+    form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => { data[cb.name] = cb.checked ? 'TRUE' : 'FALSE'; });
+
+    const feeCheckbox = document.getElementById('ledger-fee-checkbox');
+    const feeInput = document.getElementById('ledger-fee-amount-input');
+    const hasFee = feeCheckbox && feeCheckbox.checked && (Number(feeInput.value) || 0) > 0;
 
     btn.disabled = true;
     msg.textContent = '送出中…';
@@ -3882,15 +3916,45 @@ function setupLedgerForm() {
 
     try {
       const type = LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey];
-      const res = await apiPost(type, data);
-      if (res.ok) {
-        msg.textContent = '✅ 已送出（編號：' + res.id + '）';
-        msg.className = 'status-msg ok';
-        form.reset();
-        await refreshLedgerAccountView();
+
+      if (hasFee) {
+        // 手續費這筆沿用同一個日期、計入月份、場次別（如果有填的話），方便跟原本那筆算在同一個場次／月份裡
+        const feeData = {
+          '日期': data['日期'],
+          '計入月份': data['計入月份'] || '',
+          '帳目類別': LEDGER_FEE_CATEGORY,
+          '場次別': data['場次別'] || '',
+          '項目明細': LEDGER_FEE_CATEGORY,
+          '支出': String(Number(feeInput.value) || 0),
+          '需要開立發票': 'FALSE'
+        };
+        const batchRes = await apiPostBatch([
+          { type, data },
+          { type, data: feeData }
+        ]);
+        const mainOk = batchRes.ok && batchRes.results && batchRes.results[0] && batchRes.results[0].ok;
+        const feeOk = batchRes.ok && batchRes.results && batchRes.results[1] && batchRes.results[1].ok;
+        if (mainOk && feeOk) {
+          msg.textContent = `✅ 已送出（編號：${batchRes.results[0].id}），也自動多存了一筆「${LEDGER_FEE_CATEGORY}」記錄（編號：${batchRes.results[1].id}）`;
+          msg.className = 'status-msg ok';
+          form.reset();
+          await refreshLedgerAccountView();
+        } else {
+          const errText = !mainOk ? (batchRes.results && batchRes.results[0] && batchRes.results[0].error) : (batchRes.results && batchRes.results[1] && batchRes.results[1].error);
+          msg.textContent = '❌ 送出失敗：' + (errText || '未知錯誤');
+          msg.className = 'status-msg error';
+        }
       } else {
-        msg.textContent = '❌ 送出失敗：' + res.error;
-        msg.className = 'status-msg error';
+        const res = await apiPost(type, data);
+        if (res.ok) {
+          msg.textContent = '✅ 已送出（編號：' + res.id + '）';
+          msg.className = 'status-msg ok';
+          form.reset();
+          await refreshLedgerAccountView();
+        } else {
+          msg.textContent = '❌ 送出失敗：' + res.error;
+          msg.className = 'status-msg error';
+        }
       }
     } catch (err) {
       msg.textContent = '❌ 送出失敗，請確認網路連線';

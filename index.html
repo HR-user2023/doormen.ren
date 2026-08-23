@@ -676,7 +676,11 @@
           <input type="number" name="收入" min="0" step="1" />
         </label>
         <label>支出<span class="optional-note">（選填，跟收入擇一）</span>
-          <input type="number" name="支出" min="0" step="1" />
+          <input type="number" name="支出" min="0" step="1" id="ledger-expense-input" />
+        </label>
+        <label class="full checkbox-row" id="ledger-fee-row">
+          <input type="checkbox" id="ledger-fee-checkbox" />
+          <span>有轉帳手續費，勾選送出時會自動多開一筆「帳目類別：轉帳手續費」的獨立記錄（金額：<input type="number" id="ledger-fee-amount-input" class="fee-amount-input" min="0" step="1" value="15" />元，可以自己改），這樣「各帳目類別小計」就會自動幫你加總手續費</span>
         </label>
         <label class="full checkbox-row">
           <input type="checkbox" name="需要開立發票" />
