@@ -3805,24 +3805,27 @@ function renderLedgerOverview(withBalance, month) {
   const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
   const monthRows = withBalance.filter(r => ledgerEffectiveMonth(r) === month && r['帳目類別'] !== '前月餘額');
 
-  let totalIn = 0, totalOut = 0, totalInForPct = 0;
+  let totalIn = 0, totalOut = 0;
   const cats = {};
   monthRows.forEach(r => {
     const inc = Number(r['收入']) || 0;
     const out = Number(r['支出']) || 0;
     const cat = r['帳目類別'] || '（未分類）';
-    totalIn += inc;
-    totalOut += out;
-    // 「帳戶調度／回補」這類錢是真實進出帳戶的錢，收入／支出（跟帳戶餘額）照算；只有算「支出佔收入%」的分母時才排除，避免墊高分母
-    if (!LEDGER_NON_REVENUE_CATEGORIES.includes(cat)) totalInForPct += inc;
+    // 「帳戶調度／回補」這類錢不是真正的營收或成本，上面「收入」「支出」「結餘」的合計，還有下面「支出佔收入%」的計算都不把它算進去；
+    // 但這類記錄本身還是有正常記帳，「帳戶餘額」（逐筆記帳列表裡那個）是另外算的，不受這裡影響，還是照實際金流累加；
+    // 下面「各帳目類別小計」還是會列出這個類別自己實際的收入／支出數字，方便對帳，只是不併入合計、也不算它自己的支出佔收入%。
+    if (!LEDGER_NON_REVENUE_CATEGORIES.includes(cat)) {
+      totalIn += inc;
+      totalOut += out;
+    }
     if (!cats[cat]) cats[cat] = { in: 0, out: 0 };
     cats[cat].in += inc;
     cats[cat].out += out;
   });
 
-  // 每個支出類別佔當月「真正收入」的比例（例如人員薪資佔收入 7.2%），分母已經扣掉調度／回補這類非營收的錢；
-  // 沒有真正收入的月份就顯示 - ，不會除以 0
-  const pctOfIncome = out => (totalInForPct > 0 && out > 0) ? (out / totalInForPct * 100).toFixed(1) + '%' : '-';
+  // 每個支出類別佔當月「真正收入」的比例（例如人員薪資佔收入 7.2%），「調度／回補」類別自己一律顯示「-」；
+  // 沒有真正收入的月份也顯示「-」，不會除以 0
+  const pctOfIncome = (cat, out) => (!LEDGER_NON_REVENUE_CATEGORIES.includes(cat) && totalIn > 0 && out > 0) ? (out / totalIn * 100).toFixed(1) + '%' : '-';
 
   const sortedCats = Object.keys(cats).sort((a, b) => (cats[b].in + cats[b].out) - (cats[a].in + cats[a].out));
   const catRows = sortedCats.map(cat => `
@@ -3830,13 +3833,14 @@ function renderLedgerOverview(withBalance, month) {
         <td>${escapeHtml(cat)}</td>
         <td class="amt in">${cats[cat].in ? cats[cat].in.toLocaleString() : '-'}</td>
         <td class="amt out">${cats[cat].out ? cats[cat].out.toLocaleString() : '-'}</td>
-        <td class="amt">${pctOfIncome(cats[cat].out)}</td>
+        <td class="amt">${pctOfIncome(cat, cats[cat].out)}</td>
       </tr>
     `).join('');
 
   // 「各場次別小計」不受目前選的月份影響，永遠列出這個帳戶「全部時間」的場次資料（同一堂課、同一個場次常常橫跨好幾個月）
   const allTimeRows = withBalance.filter(r => r['帳目類別'] !== '前月餘額');
   const sessionHtml = account.sessionBreakdown ? renderLedgerSessionBreakdown(allTimeRows) : '';
+  const hasNonRevenue = sortedCats.some(cat => LEDGER_NON_REVENUE_CATEGORIES.includes(cat));
 
   box.innerHTML = `
     <div class="ledger-big-numbers">
@@ -3844,6 +3848,7 @@ function renderLedgerOverview(withBalance, month) {
       <div class="box out"><div class="label">支出</div><div class="value">${totalOut.toLocaleString()}</div></div>
       <div class="box balance"><div class="label">結餘（收入－支出）</div><div class="value">${(totalIn - totalOut).toLocaleString()}</div></div>
     </div>
+    ${hasNonRevenue ? `<p class="hint">上面「收入」「支出」「結餘」已經自動不含「${escapeHtml(LEDGER_NON_REVENUE_CATEGORIES.join('、'))}」這種帳戶之間互相調度、回補的錢；帳戶實際的餘額（逐筆記帳列表裡的「帳戶餘額」）不受影響，還是照實際金流累加。</p>` : ''}
     ${catRows ? `
       <details class="cat-detail" open>
         <summary>各帳目類別小計（點可收合）</summary>
@@ -3851,7 +3856,7 @@ function renderLedgerOverview(withBalance, month) {
           <thead><tr><th>帳目類別</th><th>收入</th><th>支出</th><th>支出佔收入%</th></tr></thead>
           <tbody>${catRows}</tbody>
         </table>
-        <p class="hint">「支出佔收入%」是這個類別的支出，佔當月「真正收入」的比例，方便看哪個項目花費比重比較大；當月沒有真正收入的話會顯示「-」（像「${escapeHtml(LEDGER_NON_REVENUE_CATEGORIES.join('、'))}」這種帳戶之間互相調度、回補的錢，不算是真正收入，不會列入這個比例的分母，但「收入」欄位本身跟上面的帳戶餘額還是照實際金額算）。</p>
+        <p class="hint">「支出佔收入%」是這個類別的支出，佔當月「真正收入」的比例，方便看哪個項目花費比重比較大；當月沒有真正收入的話會顯示「-」。「${escapeHtml(LEDGER_NON_REVENUE_CATEGORIES.join('、'))}」這種帳戶之間互相調度、回補的錢，這裡還是會列出它自己實際的收入／支出數字方便對帳，但不算進上面的合計、自己的「支出佔收入%」也一律顯示「-」。</p>
       </details>
     ` : '<p class="hint">這個月沒有記帳記錄。</p>'}
     ${sessionHtml}
