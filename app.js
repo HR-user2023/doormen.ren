@@ -71,12 +71,16 @@ const CATEGORIES = [
 // ---------- 記帳：四個銀行帳戶各自一張分頁，欄位完全一致 ----------
 // sessionBreakdown: true 的帳戶，「本月收支總覽」才會多顯示「各場次別小計」（依「場次別」欄位分組）。
 // 市集是擺攤場次，教育可以拿來填課程名稱，選品店／門人用不到這個分組，所以不顯示。
+// vendorBreakdown: true 的帳戶（目前只有選品店），才會多顯示「各店家／廠商貨款小計」（依「場次別」欄位分組，
+// 但分成「店家貨款」收入、「廠商貨款」支出兩張表格，只看選定的月份，不像各場次別小計是全部時間）。
 const LEDGER_ACCOUNTS = [
   { key: 'market', label: '市集', type: 'ledgerMarket', sessionBreakdown: true },
   { key: 'edu', label: '教育', type: 'ledgerEdu', sessionBreakdown: true },
-  { key: 'shop', label: '選品店', type: 'ledgerShop' },
+  { key: 'shop', label: '選品店', type: 'ledgerShop', vendorBreakdown: true },
   { key: 'door', label: '門人', type: 'ledgerDoor' }
 ];
+const LEDGER_VENDOR_INCOME_CATEGORY = '店家貨款';
+const LEDGER_VENDOR_EXPENSE_CATEGORY = '廠商貨款';
 
 // 這些帳目類別記的是帳戶之間互相調度／回補的資金（不是真正的營收），例如門人帳戶先墊付物料貨款、之後其他帳戶再匯錢回補。
 // 這種錢會影響「帳戶餘額」（是真實進出的錢，帳戶餘額照算），但算「支出佔收入%」時不該當成收入墊高分母，
@@ -3800,6 +3804,62 @@ function renderLedgerSessionBreakdown(monthRows) {
   `;
 }
 
+// 「各店家／廠商貨款小計」（只有選品店會顯示）：帳目類別＝「店家貨款」的記錄依「場次別」（店名）分組成一張收入表，
+// 帳目類別＝「廠商貨款」的記錄依「場次別」（廠商名）分組成一張支出表，各自列出「總額」，最後算一個「貨款結餘」。
+// 只看目前選定的月份（monthRows），不像各場次別小計是全部時間。
+function renderLedgerVendorBreakdown(monthRows) {
+  const storeAmounts = {}, vendorAmounts = {};
+  monthRows.forEach(r => {
+    const cat = r['帳目類別'];
+    const name = r['場次別'] || (cat === LEDGER_VENDOR_INCOME_CATEGORY ? '未填店名' : '未填廠商名');
+    if (cat === LEDGER_VENDOR_INCOME_CATEGORY) {
+      const inc = Number(r['收入']) || 0;
+      storeAmounts[name] = (storeAmounts[name] || 0) + inc;
+    } else if (cat === LEDGER_VENDOR_EXPENSE_CATEGORY) {
+      const out = Number(r['支出']) || 0;
+      vendorAmounts[name] = (vendorAmounts[name] || 0) + out;
+    }
+  });
+
+  const storeNames = Object.keys(storeAmounts).sort((a, b) => storeAmounts[b] - storeAmounts[a]);
+  const vendorNames = Object.keys(vendorAmounts).sort((a, b) => vendorAmounts[b] - vendorAmounts[a]);
+  if (storeNames.length === 0 && vendorNames.length === 0) return '';
+
+  const storeTotal = storeNames.reduce((sum, n) => sum + storeAmounts[n], 0);
+  const vendorTotal = vendorNames.reduce((sum, n) => sum + vendorAmounts[n], 0);
+
+  const storeTableHtml = storeNames.length ? `
+    <table class="cat-table">
+      <thead><tr><th colspan="2">各店家貨款收入</th></tr></thead>
+      <tbody>
+        ${storeNames.map(n => `<tr><td>${escapeHtml(n)}</td><td class="amt in">${storeAmounts[n].toLocaleString()}</td></tr>`).join('')}
+        <tr class="total-row"><td>總額</td><td class="amt in">${storeTotal.toLocaleString()}</td></tr>
+      </tbody>
+    </table>
+  ` : '';
+  const vendorTableHtml = vendorNames.length ? `
+    <table class="cat-table" style="margin-top:16px;">
+      <thead><tr><th colspan="2">各廠商貨款支出</th></tr></thead>
+      <tbody>
+        ${vendorNames.map(n => `<tr><td>${escapeHtml(n)}</td><td class="amt out">${vendorAmounts[n].toLocaleString()}</td></tr>`).join('')}
+        <tr class="total-row"><td>總額</td><td class="amt out">${vendorTotal.toLocaleString()}</td></tr>
+      </tbody>
+    </table>
+  ` : '';
+
+  return `
+    <details class="cat-detail" open>
+      <summary>各店家／廠商貨款小計（點可收合）</summary>
+      ${storeTableHtml}
+      ${vendorTableHtml}
+      <div class="ledger-big-numbers single" style="margin-top:16px;">
+        <div class="box balance"><div class="label">貨款結餘（店家貨款收入－廠商貨款支出）</div><div class="value">${(storeTotal - vendorTotal).toLocaleString()}</div></div>
+      </div>
+      <p class="hint">「各店家貨款收入」是帳目類別＝「${escapeHtml(LEDGER_VENDOR_INCOME_CATEGORY)}」的記錄，依「場次別」（填店名）分組加總；「各廠商貨款支出」是帳目類別＝「${escapeHtml(LEDGER_VENDOR_EXPENSE_CATEGORY)}」的記錄，依「場次別」（填廠商名）分組加總；沒有填店名／廠商名的記錄會統一歸在「未填店名」「未填廠商名」。這裡只看上面選定的月份，跟「各帳目類別小計」一樣。</p>
+    </details>
+  `;
+}
+
 function renderLedgerOverview(withBalance, month) {
   const box = document.getElementById('ledger-overview-content');
   const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
@@ -3840,6 +3900,8 @@ function renderLedgerOverview(withBalance, month) {
   // 「各場次別小計」不受目前選的月份影響，永遠列出這個帳戶「全部時間」的場次資料（同一堂課、同一個場次常常橫跨好幾個月）
   const allTimeRows = withBalance.filter(r => r['帳目類別'] !== '前月餘額');
   const sessionHtml = account.sessionBreakdown ? renderLedgerSessionBreakdown(allTimeRows) : '';
+  // 「各店家／廠商貨款小計」只看選定的月份（monthRows），不是全部時間
+  const vendorHtml = account.vendorBreakdown ? renderLedgerVendorBreakdown(monthRows) : '';
   const hasNonRevenue = sortedCats.some(cat => LEDGER_NON_REVENUE_CATEGORIES.includes(cat));
 
   box.innerHTML = `
@@ -3860,6 +3922,7 @@ function renderLedgerOverview(withBalance, month) {
       </details>
     ` : '<p class="hint">這個月沒有記帳記錄。</p>'}
     ${sessionHtml}
+    ${vendorHtml}
   `;
 
   ledgerLastOverview = {
