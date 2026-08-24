@@ -653,7 +653,6 @@ button.secondary {
   gap: 10px;
   margin-bottom: 4px;
 }
-.ledger-big-numbers.single { grid-template-columns: 1fr; }
 .ledger-big-numbers .box {
   background: var(--tint);
   border-radius: 10px;
@@ -692,7 +691,6 @@ table.cat-table th { color: var(--muted); font-weight: 600; font-size: 0.78rem; 
 table.cat-table td.amt { text-align: right; font-variant-numeric: tabular-nums; }
 table.cat-table td.amt.in { color: var(--ok); }
 table.cat-table td.amt.out { color: var(--danger); }
-table.cat-table tr.total-row td { background: var(--tint); font-weight: 700; border-bottom: 2px solid var(--border); }
 
 /* ---- 「本月收支總覽」各場次別小計（市集擺攤場次、教育課程名稱） ---- */
 .session-list-head {
