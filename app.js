@@ -65,6 +65,13 @@ const CATEGORIES = [
       { key: 'class-session', label: '上課紀錄' },
       { key: 'student-overview', label: '學員總覽' }
     ]
+  },
+  {
+    key: 'vendor', title: '廠商', desc: '廠商資料、貨款登記管理',
+    subs: [
+      { key: 'vendor-list', label: '廠商名單' },
+      { key: 'vendor-payment', label: '貨款登記' }
+    ]
   }
 ];
 
@@ -103,7 +110,8 @@ const VIEW_DATA_TYPE = {
   'attendance-track': 'attendance',
   'member-list': 'member',
   'ticket-sales': 'ticket',
-  'class-session': 'classSession'
+  'class-session': 'classSession',
+  'vendor-payment': 'vendorPayment'
 };
 
 const COLUMN_ORDER = {
@@ -121,7 +129,8 @@ const COLUMN_ORDER = {
            '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註'],
   ticketType: ['課程名稱', '票種', '堂數', '會員金額', '非會員金額', '可指定老師人數', '備註'],
   ticket: ['購買日期', '課程項目', '票種', '身分', '購買類型', '所屬店家', '購買人', '聯絡電話', 'LINE ID', '金額', '購買堂數', '指定老師', '備註'],
-  classSession: ['課程項目', '日期', '師資', '課程名稱', '人數', '收入', '成本', '盈利', '備註']
+  classSession: ['課程項目', '日期', '師資', '課程名稱', '人數', '收入', '成本', '盈利', '備註'],
+  vendorPayment: ['廠商名稱', '月份', '貨款金額', '備註']
 };
 
 const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態', '票種', '身分', '出席狀態', '課程項目', '購買類型']);
@@ -135,7 +144,8 @@ const TYPE_LABEL = {
   meeting: '會議記錄', meetingTopic: '會議議題', meetingTodo: '待辦事項', project: '專案', projectItem: '工作事項',
   projectSettlement: '分潤結算', projectExpenseItem: '支出項目', expense: '請款紀錄',
   attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料',
-  course: '課程', instructor: '講師', ticketType: '票種設定', ticket: '售票紀錄', classSession: '上課紀錄'
+  course: '課程', instructor: '講師', ticketType: '票種設定', ticket: '售票紀錄', classSession: '上課紀錄',
+  vendor: '廠商資料', vendorPayment: '貨款登記'
 };
 
 // type: text / textarea / number / date / month / select / partner / member / account
@@ -281,6 +291,22 @@ const FIELD_META = {
     人數: { type: 'number', optional: true },
     收入: { type: 'number', optional: true },
     成本: { type: 'number', optional: true },
+    備註: { type: 'text', optional: true }
+  },
+  vendor: {
+    廠商名稱: { type: 'text' },
+    銀行名: { type: 'text', optional: true },
+    銀行代碼: { type: 'text', optional: true },
+    銀行帳號: { type: 'text', optional: true },
+    銀行末五碼: { type: 'text', optional: true },
+    公司銀行資料: { type: 'textarea', optional: true },
+    合約目標金額: { type: 'number', optional: true },
+    備註: { type: 'text', optional: true }
+  },
+  // 「廠商編號」「廠商名稱」「月份」是這筆記錄屬於哪個廠商、哪個月份的依據，跟 Code.gs 的 LOCKED_FIELDS 一致，
+  // 不放進這裡表示編輯時不能改，只能改「貨款金額」「備註」（要改廠商/月份要用「貨款登記」重新登記一筆）
+  vendorPayment: {
+    貨款金額: { type: 'number' },
     備註: { type: 'text', optional: true }
   }
 };
@@ -569,6 +595,8 @@ function showView(viewKey) {
   if (viewKey === 'ticket-sales') loadTicketCourseComboOptions();
   if (viewKey === 'class-session') loadCourseNameSelectOptions('class-session-course-select');
   if (viewKey === 'student-overview') loadStudentOverview();
+  if (viewKey === 'vendor-list') loadVendorList();
+  if (viewKey === 'vendor-payment') populateVendorPaymentSelect();
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -4137,7 +4165,7 @@ function renderInvoicePendingList(pending) {
 }
 
 // ---------- 一般表單送出（會議／專案／請款表單走各自專屬邏輯，這裡處理其餘的） ----------
-const CUSTOM_FORM_IDS = new Set(['meeting-form', 'project-form', 'expense-form', 'ledger-form', 'ticket-sales-form']);
+const CUSTOM_FORM_IDS = new Set(['meeting-form', 'project-form', 'expense-form', 'ledger-form', 'ticket-sales-form', 'vendor-payment-form']);
 
 function setupForms() {
   document.querySelectorAll('form[data-type]').forEach(form => {
@@ -4169,6 +4197,7 @@ function setupForms() {
           if (type === 'inventory') loadDatalist('inventory', '品項名稱', 'inventory-name-list');
           if (type === 'course') loadCourseList();
           if (type === 'classSession') updateClassSessionTeacherOptions();
+          if (type === 'vendor') { loadVendorList(); populateVendorPaymentSelect(); }
         } else {
           msg.textContent = '❌ 送出失敗：' + res.error;
           msg.className = 'status-msg error';
@@ -4197,6 +4226,196 @@ function setupMemberTierAutofill() {
   });
 }
 
+// ---------- 廠商：廠商名單（基本資料＋銀行資料＋合約目標金額）＋ 貨款登記（跟分潤結算一樣，每個月一筆，自動加總） ----------
+
+// 「廠商名單」卡片列表：依廠商名稱把「廠商貨款記錄」的貨款金額加總，算出累計貨款、達成率（累計 ÷ 合約目標）
+async function loadVendorList() {
+  const box = document.getElementById('vendor-list-content');
+  if (!box) return;
+  box.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const [vendorRes, paymentRes] = await Promise.all([
+      apiGet({ action: 'list', type: 'vendor' }),
+      apiGet({ action: 'list', type: 'vendorPayment' })
+    ]);
+    if (!vendorRes.ok) {
+      box.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(vendorRes.error || '')}</p>`;
+      return;
+    }
+    const vendors = vendorRes.data || [];
+    const payments = paymentRes.ok ? (paymentRes.data || []) : [];
+
+    if (vendors.length === 0) {
+      box.innerHTML = '<p class="hint">目前還沒有廠商資料，先在上面「新增廠商」填一筆。</p>';
+      return;
+    }
+
+    const paymentsByVendorId = {};
+    payments.forEach(p => {
+      const vid = p['廠商編號'];
+      if (!paymentsByVendorId[vid]) paymentsByVendorId[vid] = [];
+      paymentsByVendorId[vid].push(p);
+    });
+
+    const html = vendors.map(v => {
+      const vid = v['編號'];
+      const myPayments = (paymentsByVendorId[vid] || []).slice().sort((a, b) => String(b['月份']).localeCompare(String(a['月份'])));
+      const cumulative = myPayments.reduce((sum, p) => sum + (Number(p['貨款金額']) || 0), 0);
+      const target = Number(v['合約目標金額']) || 0;
+      const pct = target > 0 ? Math.min(100, Math.round(cumulative / target * 1000) / 10) : null;
+
+      const bankParts = [];
+      if (v['銀行名']) bankParts.push(v['銀行名'] + (v['銀行代碼'] ? `(${v['銀行代碼']})` : ''));
+      if (v['銀行末五碼']) bankParts.push('帳號末五碼：' + v['銀行末五碼']);
+      const bankLine = bankParts.length > 0 ? bankParts.join('　') : '（尚未填銀行資料）';
+
+      const targetLine = target > 0
+        ? `合約目標 ${target.toLocaleString()}　累計貨款 ${cumulative.toLocaleString()}（${pct}%）`
+        : `累計貨款 ${cumulative.toLocaleString()}（未填合約目標金額，不計算達成率）`;
+
+      const detailRows = myPayments.map(p => `
+        <tr>
+          <td>${escapeHtml(p['月份'] || '')}</td>
+          <td class="amt">${(Number(p['貨款金額']) || 0).toLocaleString()}</td>
+          <td>${escapeHtml(p['備註'] || '')}</td>
+          <td><button type="button" class="btn-edit" data-edit-id="${escapeHtml(p['編號'])}">編輯</button></td>
+        </tr>
+      `).join('');
+
+      return `
+        <div class="doc-item vendor-item" data-vendor-id="${escapeHtml(vid || '')}">
+          <div class="doc-main">
+            <div class="doc-title">${escapeHtml(v['廠商名稱'] || '（未命名）')}</div>
+            <div class="doc-meta">${escapeHtml(bankLine)}</div>
+            <div class="doc-meta">${targetLine}</div>
+            ${target > 0 ? `<div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>` : ''}
+            <div class="doc-actions">
+              <button type="button" class="secondary btn-vendor-edit" data-vendor-edit-id="${escapeHtml(vid || '')}">編輯廠商資料</button>
+              <button type="button" class="secondary btn-vendor-toggle">查看每月貨款明細</button>
+            </div>
+            <div class="vendor-detail" hidden>
+              ${myPayments.length > 0 ? `
+                <table class="cat-table">
+                  <thead><tr><th>月份</th><th>貨款金額</th><th>備註</th><th>操作</th></tr></thead>
+                  <tbody>${detailRows}</tbody>
+                </table>
+              ` : '<p class="hint">這家廠商還沒有登記過貨款。</p>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    box.innerHTML = html;
+
+    box.querySelectorAll('.btn-vendor-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const detail = btn.closest('.doc-main').querySelector('.vendor-detail');
+        detail.hidden = !detail.hidden;
+        btn.textContent = detail.hidden ? '查看每月貨款明細' : '收合每月貨款明細';
+      });
+    });
+
+    box.querySelectorAll('.btn-vendor-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = vendors.find(x => String(x['編號']) === btn.dataset.vendorEditId);
+        if (v) openEditModal('vendor', v, loadVendorList);
+      });
+    });
+
+    box.querySelectorAll('.vendor-detail .btn-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = payments.find(x => String(x['編號']) === btn.dataset.editId);
+        if (p) openEditModal('vendorPayment', p, loadVendorList);
+      });
+    });
+  } catch (err) {
+    box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
+    console.error('讀取廠商名單失敗', err);
+  }
+}
+
+// 「貨款登記」表單的廠商下拉選單：選項值是廠商編號，另外用一個 hidden input 記住對應的廠商名稱，送出時一起帶上
+async function populateVendorPaymentSelect() {
+  const sel = document.getElementById('vendor-payment-select');
+  if (!sel) return;
+  try {
+    const res = await apiGet({ action: 'list', type: 'vendor' });
+    const vendors = res.ok ? (res.data || []) : [];
+    vendorListCache = vendors;
+    if (vendors.length === 0) {
+      sel.innerHTML = '<option value="">請先到「廠商名單」新增廠商</option>';
+      return;
+    }
+    const current = sel.value;
+    sel.innerHTML = '<option value="">請選擇廠商</option>' +
+      vendors.map(v => `<option value="${escapeHtml(v['編號'])}">${escapeHtml(v['廠商名稱'] || '')}</option>`).join('');
+    if (current) sel.value = current;
+  } catch (err) {
+    console.error('讀取廠商名單失敗', err);
+  }
+}
+
+let vendorListCache = [];
+
+// 「貨款登記」跟「分潤結算」一樣：同一個廠商＋月份重複送出，會直接更新既有那一筆的金額，不會變成兩筆重複記錄
+function setupVendorPaymentForm() {
+  const form = document.getElementById('vendor-payment-form');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const msg = form.querySelector('.status-msg');
+    const vendorId = document.getElementById('vendor-payment-select').value;
+    const vendor = vendorListCache.find(v => String(v['編號']) === vendorId);
+
+    if (!vendorId || !vendor) {
+      msg.textContent = '❌ 請先選擇廠商';
+      msg.className = 'status-msg error';
+      return;
+    }
+
+    const month = form.querySelector('input[name="月份"]').value;
+    const amount = form.querySelector('input[name="貨款金額"]').value;
+    const note = form.querySelector('textarea[name="備註"]').value;
+
+    btn.disabled = true;
+    msg.textContent = '送出中…';
+    msg.className = 'status-msg';
+
+    try {
+      const listRes = await apiGet({ action: 'list', type: 'vendorPayment' });
+      const rows = listRes.ok ? (listRes.data || []) : [];
+      const existing = rows.find(r => String(r['廠商編號']) === String(vendorId) && String(r['月份']) === String(month));
+
+      let res;
+      if (existing) {
+        res = await apiPostRaw({ action: 'update', type: 'vendorPayment', id: existing['編號'], data: { 貨款金額: amount, 備註: note } });
+        if (res.ok) res.id = existing['編號'];
+      } else {
+        res = await apiPost('vendorPayment', { 廠商編號: vendorId, 廠商名稱: vendor['廠商名稱'], 月份: month, 貨款金額: amount, 備註: note });
+      }
+
+      if (res.ok) {
+        msg.textContent = existing ? '✅ 已更新這個月的貨款金額' : '✅ 已登記（編號：' + res.id + '）';
+        msg.className = 'status-msg ok';
+        form.reset();
+        document.getElementById('vendor-payment-select').value = '';
+        loadList('vendorPayment', 'vendor-payment');
+      } else {
+        msg.textContent = '❌ 送出失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    } catch (err) {
+      msg.textContent = '❌ 送出失敗，請確認網路連線';
+      msg.className = 'status-msg error';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 // ---------- 初始化 ----------
 async function init() {
   buildHomeGrid();
@@ -4209,6 +4428,7 @@ async function init() {
   setupSettlementForm();
   setupExpenseItemQuickForm();
   setupMemberTierAutofill();
+  setupVendorPaymentForm();
   syncProjectSelectName('settlement-project-select', 'settlement-project-name');
   syncProjectSelectName('expense-item-project-select', 'expense-item-project-name');
   resetTodoRows();

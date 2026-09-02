@@ -440,6 +440,13 @@ button.secondary {
 .doc-item .doc-main .doc-meta { color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
 .doc-item .doc-arrow { color: var(--muted); }
 
+/* 廠商名單的卡片本身不是「點整列可以打開」，只有裡面的按鈕可以點，所以取消 .doc-item 預設的手指游標／hover 效果 */
+.vendor-item { cursor: default; }
+.vendor-item:hover { border-color: var(--border); background: #FAFAFA; }
+.doc-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.vendor-detail { margin-top: 12px; }
+.vendor-detail .cat-table { margin-top: 0; }
+
 /* ---- 會議日曆 ---- */
 .calendar-header {
   display: flex;

@@ -641,6 +641,78 @@
     </div>
   </section>
 
+  <!-- ============ 廠商名單（合作的髮品廠商基本資料、銀行資料、合約目標金額；累計貨款／達成率是自動加總「廠商貨款記錄」算出來的） ============ -->
+  <section id="view-vendor-list" class="view content-view">
+    <div class="card">
+      <h2>新增廠商</h2>
+      <form class="grid" data-type="vendor">
+        <label>廠商名稱
+          <input type="text" name="廠商名稱" required />
+        </label>
+        <label>銀行名
+          <input type="text" name="銀行名" placeholder="例如：兆豐銀行" />
+        </label>
+        <label>銀行代碼
+          <input type="text" name="銀行代碼" placeholder="例如：017" />
+        </label>
+        <label>銀行帳號
+          <input type="text" name="銀行帳號" />
+        </label>
+        <label>銀行末五碼
+          <input type="text" name="銀行末五碼" />
+        </label>
+        <label>合約目標金額<span class="optional-note">（整份合約總共要進多少貨，選填）</span>
+          <input type="number" name="合約目標金額" min="0" step="1" />
+        </label>
+        <label class="full">公司銀行資料<span class="optional-note">（選填，戶名等其他匯款備註）</span>
+          <textarea name="公司銀行資料"></textarea>
+        </label>
+        <label class="full">備註<span class="optional-note">（選填）</span>
+          <textarea name="備註"></textarea>
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">新增廠商</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>廠商名單</h2>
+      <p class="hint">累計貨款、達成率是自動加總下面「貨款登記」的每月記錄算出來的，不用手動維護；點「查看每月貨款明細」可以看這家廠商每個月分別登記了多少。</p>
+      <div id="vendor-list-content"><p class="hint">載入中…</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 貨款登記（跟「分潤結算」一樣，每個月登記一筆某個廠商的貨款金額，同一個廠商＋月份重複登記會直接更新，不會變成兩筆） ============ -->
+  <section id="view-vendor-payment" class="view content-view">
+    <div class="card">
+      <h2>貨款登記</h2>
+      <p class="hint">選擇廠商、填月份跟這個月的貨款金額，送出後「廠商名單」會自動幫這家廠商累加。同一個廠商＋月份重複登記，會直接更新金額，不會變成兩筆。</p>
+      <form class="grid" id="vendor-payment-form">
+        <label>選擇廠商
+          <select id="vendor-payment-select" required></select>
+        </label>
+        <label>月份
+          <input type="month" name="月份" required />
+        </label>
+        <label>這個月的貨款金額
+          <input type="number" name="貨款金額" min="0" step="1" required />
+        </label>
+        <label class="full">備註<span class="optional-note">（選填）</span>
+          <textarea name="備註"></textarea>
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">登記貨款</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>貨款登記紀錄</h2>
+      <div class="table-wrap" data-list="vendorPayment"></div>
+    </div>
+  </section>
+
   <!-- ============ 記帳（市集／教育／選品店／門人，四個帳戶各自記帳，帳戶餘額網頁自動即時算好） ============ -->
   <section id="view-ledger-entry" class="view content-view">
     <div class="card">
