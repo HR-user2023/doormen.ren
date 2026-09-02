@@ -3583,7 +3583,14 @@ function setupLedgerPrintButton() {
   });
 }
 
+// 切換帳戶／重新整理都是非同步讀取 Google Sheet，網路狀況不穩定時，
+// 如果連續點了兩次（例如手滑點到別的帳戶又點回來），前一次比較慢的讀取結果可能會「晚到」，
+// 蓋掉後一次已經顯示好的畫面 —— 這樣畫面上寫著「選品店」，桌面卻是別的帳戶的舊資料，
+// 這時候點「編輯」，跳出來的當然就不是你要修正的那一筆。
+// 用一個遞增的序號記錄「這是第幾次呼叫」，讀取完成時如果已經有更新的呼叫在跑，就直接放棄這次結果、不畫面。
+let ledgerRefreshSeq = 0;
 async function refreshLedgerAccountView() {
+  const mySeq = ++ledgerRefreshSeq;
   const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
   document.getElementById('ledger-list-title').textContent = account.label + '帳戶　逐筆記錄';
 
@@ -3594,7 +3601,9 @@ async function refreshLedgerAccountView() {
   const wrap = document.getElementById('ledger-table-wrap');
   wrap.innerHTML = '<p class="hint">載入中…</p>';
 
-  const rows = await fetchLedgerRows(ledgerCurrentAccountKey);
+  const accountKeyAtRequest = ledgerCurrentAccountKey;
+  const rows = await fetchLedgerRows(accountKeyAtRequest);
+  if (mySeq !== ledgerRefreshSeq) return; // 已經有更新的一次呼叫在跑，這次（比較舊、比較慢）的結果不要用
   const withBalance = computeLedgerRunningBalances(rows, opening ? opening.起始餘額 : 0);
 
   renderLedgerTable(withBalance);
