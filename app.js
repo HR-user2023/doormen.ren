@@ -108,7 +108,6 @@ const VIEW_DATA_TYPE = {
   'product-orders': 'order',
   'expense-track': 'expense',
   'attendance-track': 'attendance',
-  'member-list': 'member',
   'ticket-sales': 'ticket',
   'class-session': 'classSession',
   'vendor-payment': 'vendorPayment'
@@ -595,6 +594,7 @@ function showView(viewKey) {
   if (viewKey === 'ticket-sales') loadTicketCourseComboOptions();
   if (viewKey === 'class-session') loadCourseNameSelectOptions('class-session-course-select');
   if (viewKey === 'student-overview') loadStudentOverview();
+  if (viewKey === 'member-list') loadMemberList();
   if (viewKey === 'vendor-list') loadVendorList();
   if (viewKey === 'vendor-payment') populateVendorPaymentSelect();
 
@@ -4198,6 +4198,7 @@ function setupForms() {
           if (type === 'course') loadCourseList();
           if (type === 'classSession') updateClassSessionTeacherOptions();
           if (type === 'vendor') { loadVendorList(); populateVendorPaymentSelect(); }
+          if (type === 'member') loadMemberList();
         } else {
           msg.textContent = '❌ 送出失敗：' + res.error;
           msg.className = 'status-msg error';
@@ -4224,6 +4225,101 @@ function setupMemberTierAutofill() {
     const fee = MEMBER_TIER_FEES[tierSel.value];
     if (fee !== undefined) feeInput.value = fee;
   });
+}
+
+// 「會員名單」卡片列表：一間店（會員）一張卡片，常用資訊（姓名、等級、狀態、聯絡方式、城市、年費、到期日）直接看得到，
+// 比較不常看的資料（Email、押金、銀行帳號、地址、加入日期、介紹人、品牌理念評估、營運狀況評估、備註）收在「查看完整資料」裡，點了才展開，
+// 避免像之前的表格一樣要橫向捲動、一長排看不完。
+async function loadMemberList() {
+  const box = document.getElementById('member-list-content');
+  if (!box) return;
+  box.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const res = await apiGet({ action: 'list', type: 'member' });
+    if (!res.ok) {
+      box.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(res.error || '')}</p>`;
+      return;
+    }
+    const members = (res.data || []).slice().reverse(); // 最新在前
+    if (members.length === 0) {
+      box.innerHTML = '<p class="hint">目前還沒有會員資料，先在上面「會員建立」填一筆。</p>';
+      return;
+    }
+
+    const html = members.map(m => {
+      const mid = m['編號'];
+      const contactParts = [];
+      if (m['聯絡人']) contactParts.push(m['聯絡人']);
+      if (m['電話']) contactParts.push(m['電話']);
+      const contactLine = contactParts.length > 0 ? contactParts.join('　') : '（尚未填聯絡方式）';
+
+      const areaParts = [];
+      if (m['城市']) areaParts.push(m['城市']);
+      if (m['所屬區域']) areaParts.push(m['所屬區域']);
+      const areaLine = areaParts.length > 0 ? areaParts.join('　') : '';
+
+      const feeParts = [];
+      if (m['年費'] !== undefined && m['年費'] !== '') feeParts.push('年費 ' + Number(m['年費']).toLocaleString());
+      if (m['到期日']) feeParts.push('到期日 ' + m['到期日']);
+      const feeLine = feeParts.join('　');
+
+      const detailRows = [
+        ['Email', m['Email']],
+        ['押金', m['押金'] !== undefined && m['押金'] !== '' ? Number(m['押金']).toLocaleString() : ''],
+        ['銀行', [m['銀行'], m['帳號']].filter(Boolean).join('　')],
+        ['地址', m['地址']],
+        ['加入日期', m['加入日期']],
+        ['介紹人', m['介紹人']],
+        ['品牌理念評估', m['品牌理念評估']],
+        ['營運狀況評估', m['營運狀況評估']],
+        ['備註', m['備註']]
+      ].filter(([, v]) => v !== undefined && v !== null && v !== '');
+
+      const detailHtml = detailRows.length > 0 ? `
+        <table class="cat-table">
+          <tbody>
+            ${detailRows.map(([label, v]) => `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(String(v))}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      ` : '<p class="hint">沒有其他資料了。</p>';
+
+      return `
+        <div class="doc-item member-item" data-member-id="${escapeHtml(mid || '')}">
+          <div class="doc-main">
+            <div class="doc-title">${escapeHtml(m['會員名稱'] || '（未命名）')} ${tagHtml(m['會員等級'])} ${tagHtml(m['會員狀態'])}</div>
+            <div class="doc-meta">${escapeHtml(contactLine)}</div>
+            ${areaLine ? `<div class="doc-meta">${escapeHtml(areaLine)}</div>` : ''}
+            ${feeLine ? `<div class="doc-meta">${escapeHtml(feeLine)}</div>` : ''}
+            <div class="doc-actions">
+              <button type="button" class="secondary btn-member-edit" data-member-edit-id="${escapeHtml(mid || '')}">編輯會員資料</button>
+              <button type="button" class="secondary btn-member-toggle">查看完整資料</button>
+            </div>
+            <div class="member-detail" hidden>${detailHtml}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    box.innerHTML = html;
+
+    box.querySelectorAll('.btn-member-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const detail = btn.closest('.doc-main').querySelector('.member-detail');
+        detail.hidden = !detail.hidden;
+        btn.textContent = detail.hidden ? '查看完整資料' : '收合完整資料';
+      });
+    });
+
+    box.querySelectorAll('.btn-member-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const m = members.find(x => String(x['編號']) === btn.dataset.memberEditId);
+        if (m) openEditModal('member', m, loadMemberList);
+      });
+    });
+  } catch (err) {
+    box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
+    console.error('讀取會員名單失敗', err);
+  }
 }
 
 // ---------- 廠商：廠商名單（基本資料＋銀行資料＋合約目標金額）＋ 貨款登記（跟分潤結算一樣，每個月一筆，自動加總） ----------

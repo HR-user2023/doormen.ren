@@ -446,6 +446,11 @@ button.secondary {
 .doc-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .vendor-detail { margin-top: 12px; }
 .vendor-detail .cat-table { margin-top: 0; }
+.member-item { cursor: default; }
+.member-item:hover { border-color: var(--border); background: #FAFAFA; }
+.member-detail { margin-top: 12px; }
+.member-detail .cat-table { margin-top: 0; }
+.member-detail .cat-table td:first-child { color: var(--muted); white-space: nowrap; width: 1%; }
 
 /* ---- 會議日曆 ---- */
 .calendar-header {
