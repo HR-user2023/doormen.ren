@@ -3999,6 +3999,47 @@ function setupLedgerFeeCheckbox() {
   });
 }
 
+// 記帳的「選品店」帳戶，如果送出一筆「帳目類別＝廠商貨款支出」的記錄（場次別填廠商名），
+// 自動幫忙把這筆金額同步累加進「廠商」分類「貨款登記」裡對應廠商、對應月份的貨款金額，不用手動再打第二次。
+// 「場次別」文字要跟「廠商名單」裡的「廠商名稱」完全一樣才抓得到；抓不到（廠商還沒新增、或名稱打錯字）的話就不會自動同步，
+// 也不會顯示錯誤，記帳本身照樣正常存檔，之後可以自己到「貨款登記」畫面確認、或到「廠商」分類新增/修正廠商名稱後之後的記帳就會自動抓到。
+// 月份的判斷方式跟「本月收支總覽」一致：「計入月份」有填就用那個，沒填就用「日期」所在的月份。
+async function autoSyncVendorPaymentFromLedger(accountKey, data) {
+  if (accountKey !== 'shop') return null;
+  if (data['帳目類別'] !== LEDGER_VENDOR_EXPENSE_CATEGORY) return null;
+  const vendorName = String(data['場次別'] || '').trim();
+  const amount = Number(data['支出']) || 0;
+  if (!vendorName || amount <= 0) return null;
+  const month = data['計入月份'] || String(data['日期'] || '').slice(0, 7);
+  if (!month) return null;
+
+  try {
+    const vendorRes = await apiGet({ action: 'list', type: 'vendor' });
+    if (!vendorRes.ok) return null;
+    const vendor = (vendorRes.data || []).find(v => String(v['廠商名稱'] || '').trim() === vendorName);
+    if (!vendor) return null;
+
+    const paymentRes = await apiGet({ action: 'list', type: 'vendorPayment' });
+    const payments = paymentRes.ok ? (paymentRes.data || []) : [];
+    const existing = payments.find(p => String(p['廠商編號']) === String(vendor['編號']) && String(p['月份']) === String(month));
+
+    let total;
+    if (existing) {
+      total = (Number(existing['貨款金額']) || 0) + amount;
+      const res = await apiPostRaw({ action: 'update', type: 'vendorPayment', id: existing['編號'], data: { 貨款金額: total } });
+      if (!res.ok) return null;
+    } else {
+      total = amount;
+      const res = await apiPost('vendorPayment', { 廠商編號: vendor['編號'], 廠商名稱: vendor['廠商名稱'], 月份: month, 貨款金額: total });
+      if (!res.ok) return null;
+    }
+    return { vendorName: vendor['廠商名稱'], month, total };
+  } catch (err) {
+    console.error('自動同步貨款登記失敗', err);
+    return null;
+  }
+}
+
 function setupLedgerForm() {
   const form = document.getElementById('ledger-form');
   setupLedgerCombos();
@@ -4043,6 +4084,10 @@ function setupLedgerForm() {
         if (mainOk && feeOk) {
           msg.textContent = `✅ 已送出（編號：${batchRes.results[0].id}），也自動多存了一筆「${LEDGER_FEE_CATEGORY}」記錄（編號：${batchRes.results[1].id}）`;
           msg.className = 'status-msg ok';
+          const syncInfo = await autoSyncVendorPaymentFromLedger(ledgerCurrentAccountKey, data);
+          if (syncInfo) {
+            msg.textContent += `，也自動更新了「${syncInfo.vendorName}」${syncInfo.month} 的貨款登記（累計 ${syncInfo.total.toLocaleString()}）`;
+          }
           form.reset();
           await refreshLedgerAccountView();
         } else {
@@ -4055,6 +4100,10 @@ function setupLedgerForm() {
         if (res.ok) {
           msg.textContent = '✅ 已送出（編號：' + res.id + '）';
           msg.className = 'status-msg ok';
+          const syncInfo = await autoSyncVendorPaymentFromLedger(ledgerCurrentAccountKey, data);
+          if (syncInfo) {
+            msg.textContent += `，也自動更新了「${syncInfo.vendorName}」${syncInfo.month} 的貨款登記（累計 ${syncInfo.total.toLocaleString()}）`;
+          }
           form.reset();
           await refreshLedgerAccountView();
         } else {
