@@ -1113,6 +1113,31 @@
   </div>
 </div>
 
+<!-- ============ 換約彈窗（廠商合約金額到達目標、要簽新合約時用；送出後舊合約會存一份記錄，累計貨款重新從0開始算） ============ -->
+<div id="renew-contract-overlay" class="modal-overlay">
+  <div class="modal-doc modal-doc-narrow">
+    <button id="renew-contract-close" class="modal-close" title="關閉">×</button>
+    <h3 id="renew-contract-title">換約</h3>
+    <p class="hint" id="renew-contract-info"></p>
+    <p class="hint">送出後，舊合約的資料（起訖月份、目標金額、換約當下累計付了多少）會自動存一份記錄到 Google Sheet 的「廠商合約歷史」分頁備查；這家廠商的「累計貨款」「達成率」會從下面填的「新合約起始月份」重新開始算，換約前的每月貨款記錄不會被刪除，還是查得到。</p>
+    <form class="grid" id="renew-contract-form">
+      <label>新合約目標金額
+        <input type="number" name="合約目標金額" min="0" step="1" required />
+      </label>
+      <label>新合約從哪個月份開始算
+        <input type="month" name="合約起始月份" required />
+      </label>
+      <label class="full">備註<span class="optional-note">（選填，例如簽約日期、對象窗口）</span>
+        <textarea name="備註"></textarea>
+      </label>
+      <div class="submit-row">
+        <button type="submit" class="primary">確認換約</button>
+        <span class="status-msg"></span>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ============ 通行密碼輸入畫面（只有管理者在「系統設定」填了密碼才會出現，沒填就不會看到） ============ -->
 <div id="password-gate" class="modal-overlay" style="display:none;">
   <div class="modal-doc modal-doc-narrow">

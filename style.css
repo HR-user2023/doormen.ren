@@ -452,6 +452,20 @@ button.secondary {
 .member-detail .cat-table { margin-top: 0; }
 .member-detail .cat-table td:first-child { color: var(--muted); white-space: nowrap; width: 1%; }
 
+/* 廠商合約金額達成 100%：進度條變色、顯示提醒文字、「換約」按鈕變顯眼，提醒該去簽新合約了 */
+.progress-bar-fill.full { background: var(--warn); }
+.renew-due-hint { color: var(--warn); font-size: 0.8rem; font-weight: 600; margin-top: 4px; }
+.btn-vendor-renew {
+  background: var(--tint);
+  color: var(--primary-dark);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.btn-vendor-renew.renew-due { background: var(--warn); color: #fff; border-color: var(--warn); }
+
 /* ---- 會議日曆 ---- */
 .calendar-header {
   display: flex;
