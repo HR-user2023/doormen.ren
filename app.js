@@ -4405,9 +4405,14 @@ async function loadVendorList() {
     const html = vendors.map(v => {
       const vid = v['編號'];
       const myPayments = (paymentsByVendorId[vid] || []).slice().sort((a, b) => String(b['月份']).localeCompare(String(a['月份'])));
-      const cumulative = myPayments.reduce((sum, p) => sum + (Number(p['貨款金額']) || 0), 0);
+      // 「合約起始月份」是換約之後系統自動填的：有填的話，累計貨款／達成率只計入這個月份之後的貨款記錄，
+      // 不會被換約前舊合約已經付清的錢影響；沒有填代表還沒換過約，維持原本「全部歷史加總」的算法。
+      const startMonth = v['合約起始月份'] ? String(v['合約起始月份']) : '';
+      const contractPayments = startMonth ? myPayments.filter(p => String(p['月份']) >= startMonth) : myPayments;
+      const cumulative = contractPayments.reduce((sum, p) => sum + (Number(p['貨款金額']) || 0), 0);
       const target = Number(v['合約目標金額']) || 0;
       const pct = target > 0 ? Math.min(100, Math.round(cumulative / target * 1000) / 10) : null;
+      const isDue = pct !== null && pct >= 100;
 
       const bankParts = [];
       if (v['銀行名']) bankParts.push(v['銀行名'] + (v['銀行代碼'] ? `(${v['銀行代碼']})` : ''));
@@ -4415,7 +4420,7 @@ async function loadVendorList() {
       const bankLine = bankParts.length > 0 ? bankParts.join('　') : '（尚未填銀行資料）';
 
       const targetLine = target > 0
-        ? `合約目標 ${target.toLocaleString()}　累計貨款 ${cumulative.toLocaleString()}（${pct}%）`
+        ? `合約目標 ${target.toLocaleString()}　累計貨款 ${cumulative.toLocaleString()}（${pct}%）${startMonth ? `　（本期合約自 ${escapeHtml(startMonth)} 起算）` : ''}`
         : `累計貨款 ${cumulative.toLocaleString()}（未填合約目標金額，不計算達成率）`;
 
       const detailRows = myPayments.map(p => `
@@ -4433,10 +4438,12 @@ async function loadVendorList() {
             <div class="doc-title">${escapeHtml(v['廠商名稱'] || '（未命名）')}</div>
             <div class="doc-meta">${escapeHtml(bankLine)}</div>
             <div class="doc-meta">${targetLine}</div>
-            ${target > 0 ? `<div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>` : ''}
+            ${target > 0 ? `<div class="progress-bar"><div class="progress-bar-fill${isDue ? ' full' : ''}" style="width:${pct}%"></div></div>` : ''}
+            ${isDue ? '<div class="renew-due-hint">🎉 已達成合約目標，可以「換約」開始下一期了</div>' : ''}
             <div class="doc-actions">
               <button type="button" class="secondary btn-vendor-edit" data-vendor-edit-id="${escapeHtml(vid || '')}">編輯廠商資料</button>
               <button type="button" class="secondary btn-vendor-toggle">查看每月貨款明細</button>
+              <button type="button" class="btn-vendor-renew${isDue ? ' renew-due' : ''}" data-vendor-renew-id="${escapeHtml(vid || '')}">換約</button>
             </div>
             <div class="vendor-detail" hidden>
               ${myPayments.length > 0 ? `
@@ -4468,6 +4475,13 @@ async function loadVendorList() {
       });
     });
 
+    box.querySelectorAll('.btn-vendor-renew').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = vendors.find(x => String(x['編號']) === btn.dataset.vendorRenewId);
+        if (v) openRenewContractModal(v, paymentsByVendorId[v['編號']] || []);
+      });
+    });
+
     box.querySelectorAll('.vendor-detail .btn-edit').forEach(btn => {
       btn.addEventListener('click', () => {
         const p = payments.find(x => String(x['編號']) === btn.dataset.editId);
@@ -4478,6 +4492,71 @@ async function loadVendorList() {
     box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
     console.error('讀取廠商名單失敗', err);
   }
+}
+
+// 「換約」彈窗：廠商合約金額到達目標、要簽新合約時用。填新的合約目標金額＋新合約從哪個月份開始算，
+// 送出後系統會把舊合約的資料存一份記錄（存到 Google Sheet「廠商合約歷史」分頁），
+// 然後把這家廠商的合約目標金額、起算月份換成新的，「累計貨款」「達成率」就會從新合約重新開始算。
+function openRenewContractModal(vendor, vendorPayments) {
+  const overlay = document.getElementById('renew-contract-overlay');
+  const form = document.getElementById('renew-contract-form');
+  const msg = form.querySelector('.status-msg');
+  form.reset();
+  msg.textContent = '';
+  msg.className = 'status-msg';
+
+  const startMonth = vendor['合約起始月份'] ? String(vendor['合約起始月份']) : '';
+  const oldTarget = Number(vendor['合約目標金額']) || 0;
+  const cumulative = (vendorPayments || [])
+    .filter(p => !startMonth || String(p['月份']) >= startMonth)
+    .reduce((sum, p) => sum + (Number(p['貨款金額']) || 0), 0);
+
+  document.getElementById('renew-contract-title').textContent = '換約－' + (vendor['廠商名稱'] || '');
+  document.getElementById('renew-contract-info').textContent =
+    `目前合約：${oldTarget > 0 ? '目標 ' + oldTarget.toLocaleString() : '未設定目標金額'}，累計貨款 ${cumulative.toLocaleString()}` +
+    (startMonth ? `（自 ${startMonth} 起算）` : '');
+
+  // 新合約起始月份預設帶入這個月，可以自己改
+  const monthInput = form.querySelector('input[name="合約起始月份"]');
+  monthInput.value = todayStr().slice(0, 7);
+
+  overlay.classList.add('active');
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const data = {};
+    new FormData(form).forEach((value, key) => { data[key] = value; });
+
+    btn.disabled = true;
+    msg.textContent = '換約中…';
+    msg.className = 'status-msg';
+
+    try {
+      const res = await apiPostRaw({ action: 'renewVendorContract', id: vendor['編號'], data });
+      if (res.ok) {
+        msg.textContent = '✅ 換約成功，累計貨款已重新從 0 開始算';
+        msg.className = 'status-msg ok';
+        setTimeout(() => {
+          overlay.classList.remove('active');
+          loadVendorList();
+        }, 700);
+      } else {
+        msg.textContent = '❌ 換約失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    } catch (err) {
+      msg.textContent = '❌ 換約失敗，請確認網路連線';
+      msg.className = 'status-msg error';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+
+function closeRenewContractModal() {
+  document.getElementById('renew-contract-overlay').classList.remove('active');
 }
 
 // 「貨款登記」表單的廠商下拉選單：選項值是廠商編號，另外用一個 hidden input 記住對應的廠商名稱，送出時一起帶上
@@ -4605,8 +4684,12 @@ async function init() {
   document.getElementById('attendance-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'attendance-overlay') closeAttendanceModal();
   });
+  document.getElementById('renew-contract-close').addEventListener('click', closeRenewContractModal);
+  document.getElementById('renew-contract-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'renew-contract-overlay') closeRenewContractModal();
+  });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeEditModal(); closeCostItemsModal(); closeTicketTypeModal(); closeAttendanceModal(); closeDetail(); }
+    if (e.key === 'Escape') { closeEditModal(); closeCostItemsModal(); closeTicketTypeModal(); closeAttendanceModal(); closeRenewContractModal(); closeDetail(); }
   });
 
   document.getElementById('calendar-prev').addEventListener('click', () => {
