@@ -664,6 +664,9 @@
         <label>合約目標金額<span class="optional-note">（整份合約總共要進多少貨，選填）</span>
           <input type="number" name="合約目標金額" min="0" step="1" />
         </label>
+        <label>合約起始月份<span class="optional-note">（選填，這家廠商如果本來就已經在合作了，可以填合約實際從哪個月開始算）</span>
+          <input type="month" name="合約起始月份" />
+        </label>
         <label class="full">公司銀行資料<span class="optional-note">（選填，戶名等其他匯款備註）</span>
           <textarea name="公司銀行資料"></textarea>
         </label>
@@ -675,6 +678,7 @@
           <span class="status-msg"></span>
         </div>
       </form>
+      <p class="hint">「合約起始月份」不填的話，累計貨款會直接從第一筆貨款登記開始算，適合新開始合作的廠商；建立之後這個欄位就不能再修改，之後如果要換下一期合約，要用廠商卡片上的「換約」按鈕（會自動留下換約紀錄）。</p>
     </div>
     <div class="card">
       <h2>廠商名單</h2>
