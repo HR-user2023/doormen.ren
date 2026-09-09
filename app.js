@@ -106,7 +106,6 @@ const VIEW_DATA_TYPE = {
   'project-settlement': 'projectSettlement',
   'product-create': 'inventory',
   'product-orders': 'order',
-  'expense-track': 'expense',
   'attendance-track': 'attendance',
   'ticket-sales': 'ticket',
   'class-session': 'classSession',
@@ -292,6 +291,8 @@ const FIELD_META = {
     成本: { type: 'number', optional: true },
     備註: { type: 'text', optional: true }
   },
+  // 「合約起始月份」不放在這裡：只能透過「換約」功能改，編輯廠商資料看不到這個欄位（跟 Code.gs 的 LOCKED_FIELDS 一致）。
+  // 「優惠方式」「優惠數值」「優惠說明」不受限制，隨時可以在這裡修改。
   vendor: {
     廠商名稱: { type: 'text' },
     銀行名: { type: 'text', optional: true },
@@ -300,6 +301,9 @@ const FIELD_META = {
     銀行末五碼: { type: 'text', optional: true },
     公司銀行資料: { type: 'textarea', optional: true },
     合約目標金額: { type: 'number', optional: true },
+    優惠方式: { type: 'select', options: ['', '滿額贈品', '現金折扣', '固定折數', '其他'], optional: true },
+    優惠數值: { type: 'number', optional: true },
+    優惠說明: { type: 'text', optional: true },
     備註: { type: 'text', optional: true }
   },
   // 「廠商編號」「廠商名稱」「月份」是這筆記錄屬於哪個廠商、哪個月份的依據，跟 Code.gs 的 LOCKED_FIELDS 一致，
@@ -595,6 +599,7 @@ function showView(viewKey) {
   if (viewKey === 'class-session') loadCourseNameSelectOptions('class-session-course-select');
   if (viewKey === 'student-overview') loadStudentOverview();
   if (viewKey === 'member-list') loadMemberList();
+  if (viewKey === 'expense-track') loadExpenseList();
   if (viewKey === 'vendor-list') loadVendorList();
   if (viewKey === 'vendor-payment') populateVendorPaymentSelect();
 
@@ -2168,12 +2173,11 @@ async function loadList(type, viewKey) {
     }
 
     const linkInfo = DETAIL_LINK[type];
-    const isExpense = type === 'expense';
     const isSettlement = type === 'projectSettlement';
     const isClassSession = type === 'classSession';
     const canEdit = !!FIELD_META[type];
     let headerCols = cols.slice();
-    if (canEdit || isExpense || isSettlement) headerCols = headerCols.concat(['操作']);
+    if (canEdit || isSettlement) headerCols = headerCols.concat(['操作']);
 
     let html = '<table><thead><tr>' + headerCols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr></thead><tbody>';
     rows.forEach(r => {
@@ -2186,7 +2190,7 @@ async function loadList(type, viewKey) {
         return `<td>${TAG_COLUMNS.has(c) ? tagHtml(val) : escapeHtml(String(val))}</td>`;
       }).join('');
 
-      if (canEdit || isExpense || isSettlement) {
+      if (canEdit || isSettlement) {
         let actionHtml = '';
         if (canEdit) {
           actionHtml += `<button type="button" class="btn-edit" data-edit-id="${escapeHtml(r['編號'])}">編輯</button>`;
@@ -2197,10 +2201,6 @@ async function loadList(type, viewKey) {
         }
         if (isClassSession) {
           actionHtml += ` <button type="button" class="btn-attendance" data-session-id="${escapeHtml(r['編號'])}">出席名單</button>`;
-        }
-        if (isExpense && r['審核狀態'] === '待審核') {
-          actionHtml += ` <button type="button" class="btn-approve" data-expense-id="${escapeHtml(r['編號'])}" data-decision="已核准">核准</button>
-            <button type="button" class="btn-reject" data-expense-id="${escapeHtml(r['編號'])}" data-decision="已退回">退回</button>`;
         }
         html += `<td class="row-actions">${actionHtml}</td>`;
       }
@@ -2242,15 +2242,6 @@ async function loadList(type, viewKey) {
       });
     }
 
-    if (isExpense) {
-      container.querySelectorAll('.btn-approve, .btn-reject').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          decideExpense(btn.dataset.expenseId, btn.dataset.decision, type, viewKey);
-        });
-      });
-    }
-
     if (isClassSession) {
       container.querySelectorAll('.btn-attendance').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -2267,7 +2258,7 @@ async function loadList(type, viewKey) {
 }
 
 // ---------- 請款審核 ----------
-async function decideExpense(id, decision, type, viewKey) {
+async function decideExpense(id, decision, onDone) {
   const approver = document.getElementById('approver-select').value;
   if (!approver) {
     alert('請先在上方選擇「審核人」再進行核准／退回');
@@ -2276,7 +2267,7 @@ async function decideExpense(id, decision, type, viewKey) {
   try {
     const res = await apiPostRaw({ action: 'approveExpense', id, data: { 審核狀態: decision, 審核人: approver } });
     if (res.ok) {
-      loadList(type, viewKey);
+      if (onDone) onDone();
     } else {
       alert('操作失敗：' + res.error);
     }
@@ -3644,7 +3635,9 @@ async function refreshLedgerAccountView() {
 // 改成自己刻一個小小的下拉清單（按鈕＋清單），所有裝置的行為都一致，點右邊的▾一定會跳出清單。
 const LEDGER_COMBO_FIELDS = [
   { idPrefix: 'ledger-category', field: '帳目類別', emptyText: '這個帳戶目前還沒有用過的類別，直接在上面輸入新的類別就可以' },
-  { idPrefix: 'ledger-session', field: '場次別', emptyText: '這個帳戶目前還沒有填過場次別，直接在上面輸入新的（市集可填擺攤場次、教育可填課程名稱）就可以' }
+  // 「場次別」多了 manageable：可以在下拉選項旁邊直接「重新命名」（連同底下所有記帳記錄一起改名，方便合併打錯字的重複場次）
+  // 或「刪除」（只是把這些記帳記錄的「場次別」欄位清空，記帳記錄本身不會被刪除，只是不再歸類到這個場次別）。
+  { idPrefix: 'ledger-session', field: '場次別', emptyText: '這個帳戶目前還沒有填過場次別，直接在上面輸入新的（市集可填擺攤場次、教育可填課程名稱）就可以', manageable: true }
 ];
 const ledgerComboOptionsCache = {}; // idPrefix -> 這個帳戶目前用過的所有值（字串陣列）
 
@@ -3664,7 +3657,15 @@ function renderLedgerComboOptions(cfg, list) {
     box.innerHTML = `<div class="combo-empty">${escapeHtml(cfg.emptyText)}</div>`;
     return;
   }
-  box.innerHTML = list.map(n => `<button type="button" class="combo-option" data-value="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join('');
+  box.innerHTML = list.map(n => `
+    <div class="combo-row">
+      <button type="button" class="combo-option" data-value="${escapeHtml(n)}">${escapeHtml(n)}</button>
+      ${cfg.manageable ? `
+        <button type="button" class="combo-icon-btn combo-rename" data-value="${escapeHtml(n)}" title="重新命名這個選項（連同底下記帳記錄一起改名）">✏️</button>
+        <button type="button" class="combo-icon-btn combo-remove" data-value="${escapeHtml(n)}" title="刪除這個選項（記帳記錄不會被刪除，只是清空場次別）">🗑️</button>
+      ` : ''}
+    </div>
+  `).join('');
 }
 
 function setupLedgerCombos() {
@@ -3694,7 +3695,50 @@ function setupLedgerCombos() {
       renderLedgerComboOptions(cfg, filtered);
       wrap.classList.add('open');
     });
-    box.addEventListener('click', (e) => {
+    box.addEventListener('click', async (e) => {
+      const renameBtn = e.target.closest('.combo-rename');
+      if (renameBtn && cfg.manageable) {
+        const oldValue = renameBtn.dataset.value;
+        const newValue = prompt(`把「${oldValue}」重新命名成：\n（底下所有用這個場次別的記帳記錄，會一起改成新的名稱）`, oldValue);
+        if (newValue === null) return; // 取消
+        const trimmed = newValue.trim();
+        if (!trimmed || trimmed === oldValue) return;
+        try {
+          const res = await apiPostRaw({ action: 'renameLedgerSession', type: LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], oldValue, newValue: trimmed });
+          if (res.ok) {
+            alert(`已經把 ${res.updated} 筆記帳記錄的場次別，從「${oldValue}」改成「${trimmed}」`);
+            closeList();
+            refreshLedgerAccountView();
+          } else {
+            alert('修改失敗：' + (res.error || ''));
+          }
+        } catch (err) {
+          alert('修改失敗，請確認網路連線');
+          console.error(err);
+        }
+        return;
+      }
+
+      const removeBtn = e.target.closest('.combo-remove');
+      if (removeBtn && cfg.manageable) {
+        const oldValue = removeBtn.dataset.value;
+        if (!confirm(`確定要刪除「${oldValue}」這個場次別選項嗎？\n\n這個場次別底下的記帳記錄不會被刪除，只是「場次別」欄位會清空（變成「未填場次別」）。`)) return;
+        try {
+          const res = await apiPostRaw({ action: 'renameLedgerSession', type: LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], oldValue, newValue: '' });
+          if (res.ok) {
+            alert(`已經把 ${res.updated} 筆記帳記錄的場次別清空`);
+            closeList();
+            refreshLedgerAccountView();
+          } else {
+            alert('刪除失敗：' + (res.error || ''));
+          }
+        } catch (err) {
+          alert('刪除失敗，請確認網路連線');
+          console.error(err);
+        }
+        return;
+      }
+
       const optBtn = e.target.closest('.combo-option');
       if (!optBtn) return;
       input.value = optBtn.dataset.value;
@@ -3722,7 +3766,10 @@ function renderLedgerTable(withBalance) {
       <td class="amt out">${r['支出'] ? Number(r['支出']).toLocaleString() : '-'}</td>
       <td class="amt">${Number(r._balance).toLocaleString()}</td>
       <td>${isTruthyBool(r['需要開立發票']) ? (r['發票開立日期'] ? '已開立' : '待開立') : '-'}</td>
-      <td><button type="button" class="btn-edit" data-id="${escapeHtml(r['編號'])}">編輯</button></td>
+      <td>
+        <button type="button" class="btn-edit" data-id="${escapeHtml(r['編號'])}">編輯</button>
+        <button type="button" class="btn-delete-ledger" data-id="${escapeHtml(r['編號'])}">刪除</button>
+      </td>
     </tr>
   `).join('');
 
@@ -3741,6 +3788,28 @@ function renderLedgerTable(withBalance) {
       const row = withBalance.find(r => String(r['編號']) === btn.dataset.id);
       if (!row) return;
       openEditModal(LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], row, refreshLedgerAccountView);
+    });
+  });
+
+  // 「刪除」是真的把這筆記帳記錄從 Google Sheet 永久刪除，沒有辦法復原，所以先跳出確認訊息；
+  // 如果這筆記帳之前已經自動同步過「廠商貨款支出」到貨款登記，刪除記帳不會連動調整貨款登記，需要自己去修正。
+  wrap.querySelectorAll('.btn-delete-ledger').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = withBalance.find(r => String(r['編號']) === btn.dataset.id);
+      if (!row) return;
+      const label = `${row['日期'] || ''}　${row['帳目類別'] || ''}　${row['項目明細'] || ''}`;
+      if (!confirm(`確定要永久刪除這筆記帳記錄嗎？\n${label}\n\n刪除後無法復原，帳戶餘額會自動重新計算。`)) return;
+      try {
+        const res = await apiPostRaw({ action: 'delete', type: LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], id: row['編號'] });
+        if (res.ok) {
+          refreshLedgerAccountView();
+        } else {
+          alert('刪除失敗：' + (res.error || ''));
+        }
+      } catch (err) {
+        alert('刪除失敗，請確認網路連線');
+        console.error(err);
+      }
     });
   });
 }
@@ -4276,6 +4345,26 @@ function setupMemberTierAutofill() {
   });
 }
 
+// ---------- 「新增廠商」表單：選「優惠方式」時，旁邊「優惠數值」的說明文字跟著換，提醒該填什麼 ----------
+const VENDOR_DISCOUNT_VALUE_HINTS = {
+  '': '（依上面選的優惠方式決定要填什麼，選「其他」不用填）',
+  '滿額贈品': '（選填，贈品估值大概多少錢，例如填5000代表贈品價值約5,000元）',
+  '現金折扣': '（選填，折扣百分比，例如填5代表現金折扣5%）',
+  '固定折數': '（選填，折扣百分比，例如打9折請填10，代表每次貨款折扣10%）',
+  '其他': '（不用填，直接在下面「優惠說明」寫清楚就好）'
+};
+
+function setupVendorDiscountTypeHint() {
+  const typeSel = document.getElementById('vendor-discount-type-select');
+  const valueHint = document.getElementById('vendor-discount-value-hint');
+  if (!typeSel || !valueHint) return;
+  const update = () => {
+    valueHint.textContent = VENDOR_DISCOUNT_VALUE_HINTS[typeSel.value] || VENDOR_DISCOUNT_VALUE_HINTS[''];
+  };
+  typeSel.addEventListener('change', update);
+  update();
+}
+
 // 「會員名單」卡片列表：一間店（會員）一張卡片，常用資訊（姓名、等級、狀態、聯絡方式、城市、年費、到期日）直接看得到，
 // 比較不常看的資料（Email、押金、銀行帳號、地址、加入日期、介紹人、品牌理念評估、營運狀況評估、備註）收在「查看完整資料」裡，點了才展開，
 // 避免像之前的表格一樣要橫向捲動、一長排看不完。
@@ -4371,6 +4460,97 @@ async function loadMemberList() {
   }
 }
 
+// 「請款紀錄」卡片列表：一筆請款一張卡片，常用資訊（項目名稱、審核狀態、申請人、申請日期、金額）直接看得到，
+// 比較不常看的資料（說明、審核人、審核日期、收據附件、備註）收在「查看完整資料」裡；「核准」「退回」按鈕在「待審核」時才會出現，
+// 不用再像原本的表格一樣橫向捲動才按得到按鈕。
+async function loadExpenseList() {
+  const box = document.getElementById('expense-list-content');
+  if (!box) return;
+  box.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const res = await apiGet({ action: 'list', type: 'expense' });
+    if (!res.ok) {
+      box.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(res.error || '')}</p>`;
+      return;
+    }
+    const rows = (res.data || []).slice().reverse(); // 最新在前
+    if (rows.length === 0) {
+      box.innerHTML = '<p class="hint">目前還沒有請款紀錄。</p>';
+      return;
+    }
+
+    const html = rows.map(r => {
+      const rid = r['編號'];
+      const isPending = r['審核狀態'] === '待審核';
+
+      const detailRows = [
+        ['說明', r['說明']],
+        ['審核人', r['審核人']],
+        ['審核日期', r['審核日期']],
+        ['備註', r['備註']]
+      ].filter(([, v]) => v !== undefined && v !== null && v !== '');
+
+      const receiptHtml = r['收據附件']
+        ? `<a class="receipt-link" href="${escapeHtml(r['收據附件'])}" target="_blank" rel="noopener">查看附件</a>`
+        : '';
+
+      const detailHtml = (detailRows.length > 0 || receiptHtml) ? `
+        <table class="cat-table">
+          <tbody>
+            ${detailRows.map(([label, v]) => `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(String(v))}</td></tr>`).join('')}
+            ${receiptHtml ? `<tr><td>收據附件</td><td>${receiptHtml}</td></tr>` : ''}
+          </tbody>
+        </table>
+      ` : '<p class="hint">沒有其他資料了。</p>';
+
+      return `
+        <div class="doc-item expense-item" data-expense-id="${escapeHtml(rid || '')}">
+          <div class="doc-main">
+            <div class="doc-title">${escapeHtml(r['項目名稱'] || '（未命名）')} ${tagHtml(r['審核狀態'])}</div>
+            <div class="doc-meta">${escapeHtml(r['申請人'] || '')}　${escapeHtml(r['申請日期'] || '')}</div>
+            <div class="doc-meta">金額 ${(Number(r['金額']) || 0).toLocaleString()}</div>
+            <div class="doc-actions">
+              <button type="button" class="secondary btn-expense-edit" data-expense-edit-id="${escapeHtml(rid || '')}">編輯</button>
+              <button type="button" class="secondary btn-expense-toggle">查看完整資料</button>
+              ${isPending ? `
+                <button type="button" class="btn-approve" data-expense-id="${escapeHtml(rid || '')}" data-decision="已核准">核准</button>
+                <button type="button" class="btn-reject" data-expense-id="${escapeHtml(rid || '')}" data-decision="已退回">退回</button>
+              ` : ''}
+            </div>
+            <div class="expense-detail" hidden>${detailHtml}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    box.innerHTML = html;
+
+    box.querySelectorAll('.btn-expense-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const detail = btn.closest('.doc-main').querySelector('.expense-detail');
+        detail.hidden = !detail.hidden;
+        btn.textContent = detail.hidden ? '查看完整資料' : '收合完整資料';
+      });
+    });
+
+    box.querySelectorAll('.btn-expense-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const r = rows.find(x => String(x['編號']) === btn.dataset.expenseEditId);
+        if (r) openEditModal('expense', r, loadExpenseList);
+      });
+    });
+
+    box.querySelectorAll('.btn-approve, .btn-reject').forEach(btn => {
+      btn.addEventListener('click', () => {
+        decideExpense(btn.dataset.expenseId, btn.dataset.decision, loadExpenseList);
+      });
+    });
+  } catch (err) {
+    box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
+    console.error('讀取請款紀錄失敗', err);
+  }
+}
+
 // ---------- 廠商：廠商名單（基本資料＋銀行資料＋合約目標金額）＋ 貨款登記（跟分潤結算一樣，每個月一筆，自動加總） ----------
 
 // 「廠商名單」卡片列表：依廠商名稱把「廠商貨款記錄」的貨款金額加總，算出累計貨款、達成率（累計 ÷ 合約目標）
@@ -4414,6 +4594,25 @@ async function loadVendorList() {
       const pct = target > 0 ? Math.min(100, Math.round(cumulative / target * 1000) / 10) : null;
       const isDue = pct !== null && pct >= 100;
 
+      // 優惠條件：純粹算給 wing 參考用，不會影響任何實際登記的貨款金額。
+      // 「滿額贈品」「現金折扣」要達成合約目標才顯示；「固定折數」不限金額，只要有累計貨款就顯示；
+      // 「其他」直接顯示文字說明，不綁達成與否。
+      const discountType = v['優惠方式'] || '';
+      const discountValue = Number(v['優惠數值']) || 0;
+      const discountNote = v['優惠說明'] || '';
+      let discountLine = '';
+      if (discountType === '現金折扣' && isDue) {
+        const saved = Math.round(cumulative * discountValue / 100);
+        discountLine = `💰 已達成合約目標，現金折扣 ${discountValue}%，約可折抵 ${saved.toLocaleString()} 元（僅供參考，不會改動已登記的貨款金額）`;
+      } else if (discountType === '固定折數' && discountValue > 0 && cumulative > 0) {
+        const saved = Math.round(cumulative * discountValue / 100);
+        discountLine = `💰 固定折扣 ${discountValue}%，目前累計貨款約可省下 ${saved.toLocaleString()} 元（僅供參考，不會改動已登記的貨款金額）`;
+      } else if (discountType === '滿額贈品' && isDue) {
+        discountLine = `🎁 已達成合約目標，可以領贈品${discountValue > 0 ? '（估值約 ' + discountValue.toLocaleString() + ' 元）' : ''}${discountNote ? '：' + escapeHtml(discountNote) : ''}`;
+      } else if (discountType === '其他' && discountNote) {
+        discountLine = `📌 優惠說明：${escapeHtml(discountNote)}`;
+      }
+
       const bankParts = [];
       if (v['銀行名']) bankParts.push(v['銀行名'] + (v['銀行代碼'] ? `(${v['銀行代碼']})` : ''));
       if (v['銀行末五碼']) bankParts.push('帳號末五碼：' + v['銀行末五碼']);
@@ -4440,6 +4639,7 @@ async function loadVendorList() {
             <div class="doc-meta">${targetLine}</div>
             ${target > 0 ? `<div class="progress-bar"><div class="progress-bar-fill${isDue ? ' full' : ''}" style="width:${pct}%"></div></div>` : ''}
             ${isDue ? '<div class="renew-due-hint">🎉 已達成合約目標，可以「換約」開始下一期了</div>' : ''}
+            ${discountLine ? `<div class="vendor-discount-hint">${discountLine}</div>` : ''}
             <div class="doc-actions">
               <button type="button" class="secondary btn-vendor-edit" data-vendor-edit-id="${escapeHtml(vid || '')}">編輯廠商資料</button>
               <button type="button" class="secondary btn-vendor-toggle">查看每月貨款明細</button>
@@ -4652,6 +4852,7 @@ async function init() {
   setupSettlementForm();
   setupExpenseItemQuickForm();
   setupMemberTierAutofill();
+  setupVendorDiscountTypeHint();
   setupVendorPaymentForm();
   syncProjectSelectName('settlement-project-select', 'settlement-project-name');
   syncProjectSelectName('expense-item-project-select', 'expense-item-project-name');

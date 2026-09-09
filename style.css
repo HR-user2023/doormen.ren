@@ -151,6 +151,7 @@ form.grid .full { grid-column: 1 / -1; }
 label {
   display: flex;
   flex-direction: column;
+  justify-content: flex-end; /* 讓輸入框對齊格子底部，避免旁邊文字比較長時輸入框高低不齊 */
   font-size: 0.82rem;
   color: var(--muted);
   line-height: 1.4;
@@ -217,6 +218,19 @@ textarea { resize: vertical; min-height: 60px; }
   font-size: 0.8rem;
   color: var(--muted);
 }
+.combo-row { display: flex; align-items: stretch; }
+.combo-row .combo-option { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-icon-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.combo-icon-btn:hover { background: var(--tint); }
+.combo-remove:hover { color: var(--danger); }
 
 .submit-row {
   grid-column: 1 / -1;
@@ -451,10 +465,16 @@ button.secondary {
 .member-detail { margin-top: 12px; }
 .member-detail .cat-table { margin-top: 0; }
 .member-detail .cat-table td:first-child { color: var(--muted); white-space: nowrap; width: 1%; }
+.expense-item { cursor: default; }
+.expense-item:hover { border-color: var(--border); background: #FAFAFA; }
+.expense-detail { margin-top: 12px; }
+.expense-detail .cat-table { margin-top: 0; }
+.expense-detail .cat-table td:first-child { color: var(--muted); white-space: nowrap; width: 1%; }
 
 /* 廠商合約金額達成 100%：進度條變色、顯示提醒文字、「換約」按鈕變顯眼，提醒該去簽新合約了 */
 .progress-bar-fill.full { background: var(--warn); }
 .renew-due-hint { color: var(--warn); font-size: 0.8rem; font-weight: 600; margin-top: 4px; }
+.vendor-discount-hint { color: var(--ok); font-size: 0.8rem; font-weight: 600; margin-top: 4px; }
 .btn-vendor-renew {
   background: var(--tint);
   color: var(--primary-dark);
@@ -618,6 +638,17 @@ button.secondary {
   cursor: pointer;
 }
 
+.btn-delete-ledger {
+  border: none;
+  background: #FBE7E5;
+  color: var(--danger);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
 .doc-header-actions { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .doc-todo-table .btn-edit { white-space: nowrap; }
 
@@ -647,6 +678,7 @@ button.secondary {
 
 .checkbox-row {
   flex-direction: row !important;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px !important;
   font-size: 0.92rem;

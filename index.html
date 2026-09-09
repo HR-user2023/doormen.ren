@@ -27,7 +27,7 @@
   <!-- 尚未設定 Apps Script 網址時的提醒 -->
   <div id="config-warning" class="card" style="display:none; border-color:#C0392B;">
     <strong style="color:#C0392B;">⚠️ 尚未完成設定</strong>
-    <p class="hint">請先依照「設定教學.md」，把 Google Apps Script 的網頁應用程式網址貼到 config.js 裡。</p>
+    <p class="hint">請依照「設定教學.md」，把網頁應用程式網址貼到 config.js。</p>
   </div>
 
   <!-- 夥伴名單讀取失敗／是空的時的提醒（所有姓名下拉選單都會受影響） -->
@@ -52,7 +52,7 @@
   <section id="view-meeting-record" class="view content-view">
     <div class="card" id="last-meeting-ref-card" style="display:none;">
       <h2>上次會議記錄（追溯參考）</h2>
-      <p class="hint">可以參考這裡的內容，填寫下方的「追蹤上次進度」或新增待辦事項。</p>
+      <p class="hint">可參考填寫下方「追蹤上次進度」或新增待辦事項。</p>
       <div id="last-meeting-ref-content"></div>
     </div>
     <div class="card">
@@ -101,7 +101,7 @@
     </div>
     <div class="card">
       <h2>歷史會議記錄</h2>
-      <p class="hint">點一筆記錄可以打開完整的會議文件內容。</p>
+      <p class="hint">點一筆可看完整內容。</p>
       <div class="doc-list" data-doclist="meeting"></div>
     </div>
   </section>
@@ -132,7 +132,7 @@
   <section id="view-meeting-track" class="view content-view">
     <div class="card">
       <h2>會議追蹤</h2>
-      <p class="hint">每次會議先顯示簡易進度，點一筆可以打開完整的待辦事項清單與內容。</p>
+      <p class="hint">先顯示簡易進度，點一筆看完整待辦清單。</p>
       <div class="doc-list" data-doclist="meeting-track"></div>
     </div>
   </section>
@@ -170,7 +170,7 @@
   <section id="view-meeting-calendar" class="view content-view">
     <div class="card">
       <h2>會議日曆</h2>
-      <p class="hint">顯示已經在「會議記錄」登記過的會議日期，點有標記的日期可以看當天有哪些會議、點進去可以看完整內容。</p>
+      <p class="hint">有標記的日期表示當天有會議，點進去可看完整內容。</p>
       <div class="calendar-header">
         <button type="button" id="calendar-prev" class="secondary">← 上個月</button>
         <h3 id="calendar-month-label"></h3>
@@ -259,7 +259,7 @@
     </div>
     <div class="card">
       <h2>歷史專案</h2>
-      <p class="hint">點一筆專案可以打開所有工作事項、負責人、進度與分潤結算紀錄，也可以在裡面直接編輯修改。</p>
+      <p class="hint">點一筆可查看並編輯工作事項、進度與分潤結算。</p>
       <div class="doc-list" data-doclist="project"></div>
     </div>
   </section>
@@ -284,7 +284,7 @@
   <section id="view-project-track" class="view content-view">
     <div class="card">
       <h2>專案進度追蹤</h2>
-      <p class="hint">每個專案先顯示簡易進度，點一筆可以打開完整的工作事項清單、負責人與分潤結算紀錄。</p>
+      <p class="hint">先顯示簡易進度，點一筆看完整清單。</p>
       <div class="doc-list" data-doclist="project-track"></div>
     </div>
   </section>
@@ -406,7 +406,7 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">若要調整既有品項的庫存數量，請直接到 Google Sheet 的「庫存清單」分頁修改。</p>
+      <p class="hint">調整既有庫存數量請直接到 Google Sheet「庫存清單」修改。</p>
     </div>
     <div class="card">
       <h2>目前庫存清單</h2>
@@ -498,14 +498,14 @@
     </div>
   </section>
 
-  <!-- ============ 請款紀錄（列表＋審核） ============ -->
+  <!-- ============ 請款紀錄（卡片式，一筆請款一張卡片，常用資訊直接看到，其他點「查看完整資料」展開） ============ -->
   <section id="view-expense-track" class="view content-view">
     <div class="card">
       <h2>請款紀錄</h2>
       <label>審核人（要核准／退回前，請先選自己的名字）
         <select id="approver-select" class="partner-select"></select>
       </label>
-      <div class="table-wrap" data-list="expense"></div>
+      <div id="expense-list-content"><p class="hint">載入中…</p></div>
     </div>
   </section>
 
@@ -629,7 +629,7 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">選擇「會員等級」會自動帶入建議年費，仍可依實際洽談情況手動調整（領航者年費本來就是「36萬起」，會依實際狀況談定）。</p>
+      <p class="hint">選「會員等級」會帶入建議年費，可依實際洽談調整（領航者為36萬起）。</p>
     </div>
   </section>
 
@@ -664,10 +664,25 @@
         <label>合約目標金額<span class="optional-note">（整份合約總共要進多少貨，選填）</span>
           <input type="number" name="合約目標金額" min="0" step="1" />
         </label>
-        <label>合約起始月份<span class="optional-note">（選填，這家廠商如果本來就已經在合作了，可以填合約實際從哪個月開始算）</span>
+        <label>合約起始月份<span class="optional-note">（選填，已合作廠商可填實際起算月份）</span>
           <input type="month" name="合約起始月份" />
         </label>
-        <label class="full">公司銀行資料<span class="optional-note">（選填，戶名等其他匯款備註）</span>
+        <label>優惠方式<span class="optional-note">（選填，合約有優惠條件才需要選）</span>
+          <select name="優惠方式" id="vendor-discount-type-select">
+            <option value="">（不填，沒有特別優惠）</option>
+            <option value="滿額贈品">滿額贈品（達成合約目標時，贈送等值商品）</option>
+            <option value="現金折扣">現金折扣（達成合約目標時，享有現金折扣百分比）</option>
+            <option value="固定折數">固定折數（不限金額，每次貨款都固定打折）</option>
+            <option value="其他">其他（自己填文字說明）</option>
+          </select>
+        </label>
+        <label>優惠數值<span class="optional-note" id="vendor-discount-value-hint">（依優惠方式決定，選「其他」不用填）</span>
+          <input type="number" name="優惠數值" id="vendor-discount-value-input" min="0" step="0.1" />
+        </label>
+        <label class="full">優惠說明<span class="optional-note">（選填，文字說明優惠內容，達成目標時會顯示在廠商卡片提醒你）</span>
+          <textarea name="優惠說明" id="vendor-discount-note-textarea"></textarea>
+        </label>
+        <label class="full">公司銀行資料<span class="optional-note">（選填，戶名等匯款備註）</span>
           <textarea name="公司銀行資料"></textarea>
         </label>
         <label class="full">備註<span class="optional-note">（選填）</span>
@@ -678,11 +693,12 @@
           <span class="status-msg"></span>
         </div>
       </form>
-      <p class="hint">「合約起始月份」不填的話，累計貨款會直接從第一筆貨款登記開始算，適合新開始合作的廠商；建立之後這個欄位就不能再修改，之後如果要換下一期合約，要用廠商卡片上的「換約」按鈕（會自動留下換約紀錄）。</p>
+      <p class="hint">「合約起始月份」不填則從第一筆貨款開始算；建立後不能修改，之後要換約請用廠商卡片的「換約」按鈕。</p>
+      <p class="hint">「優惠方式」等三欄只是記錄＋算參考金額，不影響貨款金額，之後可在「編輯廠商資料」修改。</p>
     </div>
     <div class="card">
       <h2>廠商名單</h2>
-      <p class="hint">累計貨款、達成率是自動加總下面「貨款登記」的每月記錄算出來的，不用手動維護；點「查看每月貨款明細」可以看這家廠商每個月分別登記了多少。</p>
+      <p class="hint">累計貨款、達成率自動算出，不用手動維護；點「查看每月貨款明細」看各月金額。</p>
       <div id="vendor-list-content"><p class="hint">載入中…</p></div>
     </div>
   </section>
@@ -691,7 +707,7 @@
   <section id="view-vendor-payment" class="view content-view">
     <div class="card">
       <h2>貨款登記</h2>
-      <p class="hint">選擇廠商、填月份跟這個月的貨款金額，送出後「廠商名單」會自動幫這家廠商累加。同一個廠商＋月份重複登記，會直接更新金額，不會變成兩筆。</p>
+      <p class="hint">送出後會自動累加到「廠商名單」；同廠商同月份重複登記會更新金額，不會變兩筆。</p>
       <form class="grid" id="vendor-payment-form">
         <label>選擇廠商
           <select id="vendor-payment-select" required></select>
@@ -723,7 +739,7 @@
       <div class="account-tabs" id="ledger-account-tabs"></div>
 
       <h2>新增一筆記帳</h2>
-      <p class="hint">選好上面的帳戶之後填這張表單，送出就會存到對應帳戶的分頁。「帳戶餘額」不用填，系統會自動算好。</p>
+      <p class="hint">選好帳戶後填寫送出即可；「帳戶餘額」不用填，系統自動算好。</p>
       <form class="grid" id="ledger-form">
         <label>日期
           <input type="date" name="日期" required />
@@ -731,14 +747,14 @@
         <label>計入月份<span class="optional-note">（選填，見下方說明）</span>
           <input type="month" name="計入月份" />
         </label>
-        <label>帳目類別<span class="optional-note">（點右邊▾可以選這個帳戶用過的類別，或自己輸入新的）</span>
+        <label>帳目類別<span class="optional-note">（可點▾選用過的類別，或自行輸入）</span>
           <div class="combo-wrap" id="ledger-category-combo">
             <input type="text" name="帳目類別" id="ledger-category-input" placeholder="例如：專案收入、人員薪資" required autocomplete="off" />
             <button type="button" class="combo-toggle" id="ledger-category-toggle" aria-label="選擇類別">▾</button>
             <div class="combo-list" id="ledger-category-options"></div>
           </div>
         </label>
-        <label>場次別<span class="optional-note">（選填，市集可填擺攤場次、教育可填課程名稱、選品店的「店家貨款收入」「廠商貨款支出」可以填店名／廠商名，會用來統計「本月收支總覽」的各場次／店家小計；點右邊▾可以選之前填過的）</span>
+        <label>場次別<span class="optional-note">（選填，可填場次、店名或廠商名，用於各項小計；點▾選之前填過的）</span>
           <div class="combo-wrap" id="ledger-session-combo">
             <input type="text" name="場次別" id="ledger-session-input" placeholder="例如：8/2 大安公園市集、瑜珈班" autocomplete="off" />
             <button type="button" class="combo-toggle" id="ledger-session-toggle" aria-label="選擇場次別">▾</button>
@@ -756,7 +772,7 @@
         </label>
         <label class="full checkbox-row" id="ledger-fee-row">
           <input type="checkbox" id="ledger-fee-checkbox" />
-          <span>有轉帳手續費，勾選送出時會自動多開一筆「帳目類別：轉帳手續費」的獨立記錄（金額：<input type="number" id="ledger-fee-amount-input" class="fee-amount-input" min="0" step="1" value="15" />元，可以自己改），這樣「各帳目類別小計」就會自動幫你加總手續費</span>
+          <span>有轉帳手續費，會自動多開一筆「轉帳手續費」記錄（金額：<input type="number" id="ledger-fee-amount-input" class="fee-amount-input" min="0" step="1" value="15" />元，可自行修改）</span>
         </label>
         <label class="full checkbox-row">
           <input type="checkbox" name="需要開立發票" />
@@ -765,7 +781,7 @@
         <label class="full">備註<span class="optional-note">（選填）</span>
           <input type="text" name="備註" />
         </label>
-        <p class="hint full" style="margin:0;">「計入月份」不填的話，預設用「日期」所在的月份算進「本月收支總覽」；如果這筆要算進別的月份的損益（例如人員薪資 9 月才發放，但要算 8 月的支出），才需要另外填「計入月份」選 8 月。</p>
+        <p class="hint full" style="margin:0;">「計入月份」不填則用「日期」所在月份；要算進其他月份損益才需要另外填。</p>
         <div class="submit-row">
           <button type="submit" class="primary">送出記帳</button>
           <span class="status-msg"></span>
@@ -776,7 +792,7 @@
     <div class="card">
       <h2 id="ledger-list-title">逐筆記錄</h2>
       <p class="hint" id="ledger-asof-hint"></p>
-      <p class="hint">最新的記錄在最上面，「帳戶餘額」是系統自動算好的，不能直接編輯；其他欄位可以點「編輯」修改。</p>
+      <p class="hint">最新記錄在最上面；「帳戶餘額」自動算好不能編輯，其他欄位可點「編輯」修改。</p>
       <div class="scroll-wrap" id="ledger-table-wrap"></div>
     </div>
   </section>
@@ -797,8 +813,8 @@
         <button type="button" id="ledger-print-btn" class="secondary">存成 PDF</button>
         <span class="status-msg" id="ledger-archive-msg"></span>
       </div>
-      <p class="hint">存檔會把現在畫面上算好的數字（收入、支出、結餘、各帳目類別小計）寫一份到「記帳月結存檔」分頁；同一個帳戶＋月份重新存檔會覆蓋舊的，不會重複累積。</p>
-      <p class="hint">「存成 PDF」會跳出瀏覽器的列印視窗，把「印表機」（或「目的地」）改選「另存為 PDF」，就可以把現在畫面上這個帳戶、這個月份的收支總覽存成一份 PDF 檔案。</p>
+      <p class="hint">存檔會把目前數字寫入「記帳月結存檔」；同帳戶同月份重存會覆蓋舊資料。</p>
+      <p class="hint">點下去在列印視窗把「目的地」改選「另存為 PDF」即可存檔。</p>
     </div>
   </section>
 
@@ -806,7 +822,7 @@
   <section id="view-ledger-invoice" class="view content-view">
     <div class="card">
       <h2>發票待開立</h2>
-      <p class="hint">列出四個帳戶裡「有勾選需要開立發票」但「還沒填開立日期」的記錄。開立之後選日期、點「標記已開立」，這筆就會從這裡消失（記錄本身還在，只是不會再提醒）。</p>
+      <p class="hint">列出還沒開立發票的記錄；開立後選日期、點「標記已開立」即可。</p>
       <div class="scroll-wrap" id="invoice-pending-wrap"></div>
     </div>
   </section>
@@ -815,7 +831,7 @@
   <section id="view-course-list" class="view content-view">
     <div class="card">
       <h2>新增課程</h2>
-      <p class="hint">課程本身只填名稱，票種、堂數、價格、可指定老師人數都在課程卡片裡設定。</p>
+      <p class="hint">課程只填名稱，票種、堂數、價格等在課程卡片裡設定。</p>
       <form class="grid" data-type="course">
         <label>課程名稱
           <input type="text" name="課程名稱" placeholder="例如：瑜珈" required />
@@ -831,7 +847,7 @@
     </div>
     <div class="card">
       <h2>課程列表</h2>
-      <p class="hint">點課程卡片可以管理這個課程底下的票種（年票／季票／單堂票、堂數、價格、可指定老師人數）。</p>
+      <p class="hint">點課程卡片可管理票種、堂數與價格。</p>
       <div class="doc-list" id="course-list-wrap"></div>
     </div>
   </section>
@@ -853,19 +869,19 @@
             <option>非會員</option>
           </select>
         </label>
-        <label>購買類型<span class="optional-note">（跟「身分」是兩件事，只是記錄用，不影響價格）</span>
+        <label>購買類型<span class="optional-note">（跟「身分」無關，僅記錄用）</span>
           <select id="ticket-buytype-select">
             <option value="店家購票">店家購票</option>
             <option value="個人購票">個人購票</option>
           </select>
         </label>
-        <label class="full" id="ticket-store-field">所屬沙龍／店家<span class="optional-note">（購買類型是「店家購票」才需要填）</span>
+        <label class="full" id="ticket-store-field">所屬沙龍／店家<span class="optional-note">（「店家購票」才需要填）</span>
           <input type="text" id="ticket-store-input" />
         </label>
 
         <div class="full" id="ticket-buyer-field">
           <div class="divider"></div>
-          <p class="hint" style="margin-top:0;">購買人資料（單人購買才需要填；一次幫多人買請切到下面「購買方式」各自填寫）：</p>
+          <p class="hint" style="margin-top:0;">購買人資料（僅單人購買需填，多人購買請至下方「購買方式」填寫）：</p>
           <div class="field-grid">
             <label>購買人姓名
               <input type="text" id="ticket-single-name" />
@@ -894,13 +910,13 @@
 
       <!-- 單人購買 -->
       <div id="ticket-single-block">
-        <label>張數（數量）<span class="optional-note">（一次買好幾張同票種的票，金額跟購買堂數會自動倍增）</span>
+        <label>張數（數量）<span class="optional-note">（買多張同票種，金額與堂數會自動倍增）</span>
           <input type="number" id="ticket-qty-input" min="1" step="1" value="1" />
         </label>
         <label>金額<span class="optional-note" id="ticket-amount-hint"></span>
           <input type="number" id="ticket-amount-input" min="0" step="1" required />
         </label>
-        <label>購買堂數<span class="optional-note" id="ticket-lessons-hint">（選好課程項目會自動帶入，如有特殊約定可手動調整）</span>
+        <label>購買堂數<span class="optional-note" id="ticket-lessons-hint">（選課程項目會自動帶入，可手動調整）</span>
           <input type="number" id="ticket-lessons-input" min="1" step="1" required />
         </label>
         <label class="full" id="ticket-teacher-field" style="display:none;">指定老師<span class="optional-note" id="ticket-teacher-counter"></span>
@@ -914,7 +930,7 @@
 
       <!-- 一次幫多人買 -->
       <div id="ticket-multi-block" style="display:none;">
-        <p class="hint">上面「基本資料」（課程項目、身分、購買類型、所屬店家、購買日期、備註）大家共用；每一位學員自己的姓名、電話、LINE、張數都在下面各自填寫，送出後會各自產生一筆獨立的售票紀錄。</p>
+        <p class="hint">上面「基本資料」大家共用；每位學員的姓名、電話、LINE、張數在下面各自填寫。</p>
         <div id="ticket-multi-rows"></div>
         <button type="button" class="secondary" id="ticket-multi-add-btn">＋ 再新增一位學員</button>
         <div class="submit-row">
@@ -962,7 +978,7 @@
         <label>日期
           <input type="date" name="日期" required />
         </label>
-        <label>師資<span class="optional-note">（這堂實際教課的老師，只列出這個課程勾選過的講師）</span>
+        <label>師資<span class="optional-note">（只列出這個課程勾選過的講師）</span>
           <select name="師資" id="class-session-teacher-select" required></select>
         </label>
         <label>課程名稱
@@ -989,7 +1005,7 @@
     </div>
     <div class="card">
       <h2>上課紀錄列表</h2>
-      <p class="hint">點每一列的「出席名單」，可以勾選這堂課同一個課程項目底下還有剩餘堂數、老師也符合（或不限老師）的購買人誰有來、誰沒來。</p>
+      <p class="hint">點「出席名單」勾選有剩餘堂數、老師也符合的購買人是否出席。</p>
       <div class="table-wrap" data-list="classSession"></div>
     </div>
   </section>
@@ -998,7 +1014,7 @@
   <section id="view-student-overview" class="view content-view">
     <div class="card">
       <h2>學員總覽</h2>
-      <p class="hint">按「課程項目」分開列出每位學員的票種、身分、指定老師、購買類型、購買堂數、已出席、剩餘堂數；點「查看明細」可以看每一堂課的出席狀況、聯絡電話、LINE ID 等完整資料。這個畫面即時從「售票登記」＋「上課出席名單」算出來，不用另外填資料。</p>
+      <p class="hint">按課程項目列出每位學員的票種與堂數；點「查看明細」看出席狀況與聯絡方式，資料即時算出不用另填。</p>
       <div class="scroll-wrap" id="student-overview-wrap"></div>
     </div>
   </section>
@@ -1055,7 +1071,7 @@
     <h3 id="tickettype-title">課程設定</h3>
 
     <h4 class="modal-subhead">授課老師</h4>
-    <p class="hint">在下面新增這個課程的授課老師（每個課程各自獨立，不會看到其他課程新增過的老師）。之後「上課紀錄」的師資、「售票登記」的指定老師，都只會列出這裡的人。</p>
+    <p class="hint">新增這個課程的授課老師（各課程各自獨立）；之後師資、指定老師選單只會列出這裡的人。</p>
     <div class="teacher-chip-list" id="course-teacher-box"></div>
     <div class="add-teacher-row">
       <input type="text" id="course-new-teacher-input" placeholder="輸入新老師的名字，例如：Cathy 老師" />
@@ -1075,7 +1091,7 @@
           <option>單堂票</option>
         </select>
       </label>
-      <label>堂數<span class="optional-note">（這個方案總共可以上幾堂課，單堂票填1）</span>
+      <label>堂數<span class="optional-note">（這個方案共可上幾堂，單堂票填1）</span>
         <input type="number" name="堂數" min="1" step="1" required />
       </label>
       <label>會員金額
@@ -1104,7 +1120,7 @@
   <div class="modal-doc modal-doc-narrow">
     <button id="attendance-close" class="modal-close" title="關閉">×</button>
     <h3 id="attendance-title">出席名單</h3>
-    <p class="hint">預設列出同一個課程項目底下還有剩餘堂數、老師也符合（沒指定老師的票不限）的購買人，勾選代表「出席」，取消勾選代表「缺席」，出席一次會自動少算一堂。也可以在下面手動加入其他人（例如臨時來賓，或想破例上課的學員）。</p>
+    <p class="hint">列出有剩餘堂數、老師也符合的購買人，勾選＝出席（自動少算一堂）；也可手動加入其他人。</p>
     <div id="attendance-list"></div>
     <div class="add-attendee-row">
       <input type="text" id="attendance-add-name" placeholder="手動加入姓名（例如單堂票購買人）" />
@@ -1123,7 +1139,7 @@
     <button id="renew-contract-close" class="modal-close" title="關閉">×</button>
     <h3 id="renew-contract-title">換約</h3>
     <p class="hint" id="renew-contract-info"></p>
-    <p class="hint">送出後，舊合約的資料（起訖月份、目標金額、換約當下累計付了多少）會自動存一份記錄到 Google Sheet 的「廠商合約歷史」分頁備查；這家廠商的「累計貨款」「達成率」會從下面填的「新合約起始月份」重新開始算，換約前的每月貨款記錄不會被刪除，還是查得到。</p>
+    <p class="hint">送出後舊合約資料會存到「廠商合約歷史」備查；累計貨款、達成率會從新起始月份重新算，換約前的記錄不會被刪除。</p>
     <form class="grid" id="renew-contract-form">
       <label>新合約目標金額
         <input type="number" name="合約目標金額" min="0" step="1" required />
