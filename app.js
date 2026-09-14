@@ -70,7 +70,9 @@ const CATEGORIES = [
     key: 'vendor', title: '廠商', desc: '廠商資料、貨款登記管理',
     subs: [
       { key: 'vendor-list', label: '廠商名單' },
-      { key: 'vendor-payment', label: '貨款登記' }
+      { key: 'vendor-payment', label: '貨款登記' },
+      { key: 'market-vendor', label: '市集廠商' },
+      { key: 'market-vendor-search', label: '市集匯款查詢' }
     ]
   }
 ];
@@ -80,8 +82,10 @@ const CATEGORIES = [
 // 市集是擺攤場次，教育可以拿來填課程名稱，選品店／門人用不到這個分組，所以不顯示。
 // vendorBreakdown: true 的帳戶（目前只有選品店），才會多顯示「各店家／廠商貨款小計」（依「場次別」欄位分組，
 // 但分成「店家貨款收入」、「廠商貨款支出」兩張表格，只看選定的月份，不像各場次別小計是全部時間）。
+// brandField: true（目前只有市集）才會在「新增一筆記帳」多顯示「品牌名稱」欄位，記錄這筆廠商貨款支出是匯給哪個
+// 市集合作品牌，供「市集匯款查詢」頁籤搜尋用；場次別在市集已經固定用來記錄是哪一場市集，不能再兼著記品牌名稱。
 const LEDGER_ACCOUNTS = [
-  { key: 'market', label: '市集', type: 'ledgerMarket', sessionBreakdown: true },
+  { key: 'market', label: '市集', type: 'ledgerMarket', sessionBreakdown: true, brandField: true },
   { key: 'edu', label: '教育', type: 'ledgerEdu', sessionBreakdown: true },
   { key: 'shop', label: '選品店', type: 'ledgerShop', vendorBreakdown: true },
   { key: 'door', label: '門人', type: 'ledgerDoor' }
@@ -143,7 +147,7 @@ const TYPE_LABEL = {
   projectSettlement: '分潤結算', projectExpenseItem: '支出項目', expense: '請款紀錄',
   attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料',
   course: '課程', instructor: '講師', ticketType: '票種設定', ticket: '售票紀錄', classSession: '上課紀錄',
-  vendor: '廠商資料', vendorPayment: '貨款登記'
+  vendor: '廠商資料', vendorPayment: '貨款登記', marketVendor: '市集廠商資料'
 };
 
 // type: text / textarea / number / date / month / select / partner / member / account
@@ -311,6 +315,17 @@ const FIELD_META = {
   vendorPayment: {
     貨款金額: { type: 'number' },
     備註: { type: 'text', optional: true }
+  },
+  // 市集廠商：比「廠商」簡化很多，不需要合約目標／優惠方式，主要是記錄品牌的銀行資料，方便匯款時查詢。
+  marketVendor: {
+    品牌名稱: { type: 'text' },
+    聯絡人: { type: 'text', optional: true },
+    電話: { type: 'text', optional: true },
+    銀行名: { type: 'text', optional: true },
+    銀行代碼: { type: 'text', optional: true },
+    銀行帳號: { type: 'text', optional: true },
+    銀行末五碼: { type: 'text', optional: true },
+    備註: { type: 'text', optional: true }
   }
 };
 
@@ -320,6 +335,7 @@ const LEDGER_FIELD_META = {
   計入月份: { type: 'month', optional: true },
   帳目類別: { type: 'text' },
   場次別: { type: 'text', optional: true },
+  品牌名稱: { type: 'text', optional: true },
   項目明細: { type: 'text' },
   收入: { type: 'number', optional: true },
   支出: { type: 'number', optional: true },
@@ -602,6 +618,8 @@ function showView(viewKey) {
   if (viewKey === 'expense-track') loadExpenseList();
   if (viewKey === 'vendor-list') loadVendorList();
   if (viewKey === 'vendor-payment') populateVendorPaymentSelect();
+  if (viewKey === 'market-vendor') loadMarketVendorList();
+  if (viewKey === 'market-vendor-search') setupMarketVendorSearch();
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -3613,6 +3631,9 @@ async function refreshLedgerAccountView() {
   const account = LEDGER_ACCOUNTS.find(a => a.key === ledgerCurrentAccountKey);
   document.getElementById('ledger-list-title').textContent = account.label + '帳戶　逐筆記錄';
 
+  const brandField = document.getElementById('ledger-brand-field');
+  if (brandField) brandField.style.display = account.brandField ? '' : 'none';
+
   const opening = ledgerOpeningCache[account.label];
   const asofHint = document.getElementById('ledger-asof-hint');
   asofHint.textContent = opening ? `帳戶餘額以 ${opening.起始日期} 的餘額（${Number(opening.起始餘額).toLocaleString()}）為基準往下累加` : '';
@@ -3637,7 +3658,9 @@ const LEDGER_COMBO_FIELDS = [
   { idPrefix: 'ledger-category', field: '帳目類別', emptyText: '這個帳戶目前還沒有用過的類別，直接在上面輸入新的類別就可以' },
   // 「場次別」多了 manageable：可以在下拉選項旁邊直接「重新命名」（連同底下所有記帳記錄一起改名，方便合併打錯字的重複場次）
   // 或「刪除」（只是把這些記帳記錄的「場次別」欄位清空，記帳記錄本身不會被刪除，只是不再歸類到這個場次別）。
-  { idPrefix: 'ledger-session', field: '場次別', emptyText: '這個帳戶目前還沒有填過場次別，直接在上面輸入新的（市集可填擺攤場次、教育可填課程名稱）就可以', manageable: true }
+  { idPrefix: 'ledger-session', field: '場次別', emptyText: '這個帳戶目前還沒有填過場次別，直接在上面輸入新的（市集可填擺攤場次、教育可填課程名稱）就可以', manageable: true },
+  // 「品牌名稱」只有市集帳戶的表單會顯示，跟「場次別」一樣支援重新命名／刪除，方便合併打錯字的品牌名稱
+  { idPrefix: 'ledger-brand', field: '品牌名稱', emptyText: '這個帳戶目前還沒有填過品牌名稱，直接在上面輸入新的就可以', manageable: true }
 ];
 const ledgerComboOptionsCache = {}; // idPrefix -> 這個帳戶目前用過的所有值（字串陣列）
 
@@ -3662,7 +3685,7 @@ function renderLedgerComboOptions(cfg, list) {
       <button type="button" class="combo-option" data-value="${escapeHtml(n)}">${escapeHtml(n)}</button>
       ${cfg.manageable ? `
         <button type="button" class="combo-icon-btn combo-rename" data-value="${escapeHtml(n)}" title="重新命名這個選項（連同底下記帳記錄一起改名）">✏️</button>
-        <button type="button" class="combo-icon-btn combo-remove" data-value="${escapeHtml(n)}" title="刪除這個選項（記帳記錄不會被刪除，只是清空場次別）">🗑️</button>
+        <button type="button" class="combo-icon-btn combo-remove" data-value="${escapeHtml(n)}" title="刪除這個選項（記帳記錄不會被刪除，只是清空${escapeHtml(cfg.field)}）">🗑️</button>
       ` : ''}
     </div>
   `).join('');
@@ -3704,9 +3727,9 @@ function setupLedgerCombos() {
         const trimmed = newValue.trim();
         if (!trimmed || trimmed === oldValue) return;
         try {
-          const res = await apiPostRaw({ action: 'renameLedgerSession', type: LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], oldValue, newValue: trimmed });
+          const res = await apiPostRaw({ action: 'renameLedgerSession', type: LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], field: cfg.field, oldValue, newValue: trimmed });
           if (res.ok) {
-            alert(`已經把 ${res.updated} 筆記帳記錄的場次別，從「${oldValue}」改成「${trimmed}」`);
+            alert(`已經把 ${res.updated} 筆記帳記錄的「${cfg.field}」，從「${oldValue}」改成「${trimmed}」`);
             closeList();
             refreshLedgerAccountView();
           } else {
@@ -3722,11 +3745,11 @@ function setupLedgerCombos() {
       const removeBtn = e.target.closest('.combo-remove');
       if (removeBtn && cfg.manageable) {
         const oldValue = removeBtn.dataset.value;
-        if (!confirm(`確定要刪除「${oldValue}」這個場次別選項嗎？\n\n這個場次別底下的記帳記錄不會被刪除，只是「場次別」欄位會清空（變成「未填場次別」）。`)) return;
+        if (!confirm(`確定要刪除「${oldValue}」這個選項嗎？\n\n底下的記帳記錄不會被刪除，只是「${cfg.field}」欄位會清空。`)) return;
         try {
-          const res = await apiPostRaw({ action: 'renameLedgerSession', type: LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], oldValue, newValue: '' });
+          const res = await apiPostRaw({ action: 'renameLedgerSession', type: LEDGER_TYPE_BY_KEY[ledgerCurrentAccountKey], field: cfg.field, oldValue, newValue: '' });
           if (res.ok) {
-            alert(`已經把 ${res.updated} 筆記帳記錄的場次別清空`);
+            alert(`已經把 ${res.updated} 筆記帳記錄的「${cfg.field}」清空`);
             closeList();
             refreshLedgerAccountView();
           } else {
@@ -4317,6 +4340,7 @@ function setupForms() {
           if (type === 'classSession') updateClassSessionTeacherOptions();
           if (type === 'vendor') { loadVendorList(); populateVendorPaymentSelect(); }
           if (type === 'member') loadMemberList();
+          if (type === 'marketVendor') loadMarketVendorList();
         } else {
           msg.textContent = '❌ 送出失敗：' + res.error;
           msg.className = 'status-msg error';
@@ -4401,6 +4425,11 @@ async function loadMemberList() {
       if (m['到期日']) feeParts.push('到期日 ' + m['到期日']);
       const feeLine = feeParts.join('　');
 
+      // 銀行帳號直接顯示在卡片上（不用點「查看完整資料」），但只顯示末五碼，保護帳號隱私；
+      // 完整帳號還是有存在 Google Sheet，「查看完整資料」裡也還是看得到完整帳號。
+      const bankMasked = m['帳號'] ? String(m['帳號']).slice(-5) : '';
+      const bankLine = m['銀行'] ? `${m['銀行']}${bankMasked ? '　帳號末五碼 ' + bankMasked : ''}` : '';
+
       const detailRows = [
         ['Email', m['Email']],
         ['押金', m['押金'] !== undefined && m['押金'] !== '' ? Number(m['押金']).toLocaleString() : ''],
@@ -4428,6 +4457,7 @@ async function loadMemberList() {
             <div class="doc-meta">${escapeHtml(contactLine)}</div>
             ${areaLine ? `<div class="doc-meta">${escapeHtml(areaLine)}</div>` : ''}
             ${feeLine ? `<div class="doc-meta">${escapeHtml(feeLine)}</div>` : ''}
+            ${bankLine ? `<div class="doc-meta">${escapeHtml(bankLine)}</div>` : ''}
             <div class="doc-actions">
               <button type="button" class="secondary btn-member-edit" data-member-edit-id="${escapeHtml(mid || '')}">編輯會員資料</button>
               <button type="button" class="secondary btn-member-toggle">查看完整資料</button>
@@ -4692,6 +4722,163 @@ async function loadVendorList() {
     box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
     console.error('讀取廠商名單失敗', err);
   }
+}
+
+// 「市集廠商」卡片列表：比「廠商名單」簡化很多，沒有合約目標／達成率，主要顯示聯絡方式跟銀行末五碼，
+// 方便匯款前快速核對資料，不用每次都跟品牌重新索取一次銀行帳號。
+async function loadMarketVendorList() {
+  const box = document.getElementById('market-vendor-list-content');
+  if (!box) return;
+  box.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const res = await apiGet({ action: 'list', type: 'marketVendor' });
+    if (!res.ok) {
+      box.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(res.error || '')}</p>`;
+      return;
+    }
+    const vendors = (res.data || []).slice().reverse(); // 最新在前
+    if (vendors.length === 0) {
+      box.innerHTML = '<p class="hint">目前還沒有市集廠商資料，先在上面「新增市集廠商」填一筆。</p>';
+      return;
+    }
+
+    const html = vendors.map(v => {
+      const vid = v['編號'];
+      const contactParts = [];
+      if (v['聯絡人']) contactParts.push(v['聯絡人']);
+      if (v['電話']) contactParts.push(v['電話']);
+      const contactLine = contactParts.length > 0 ? contactParts.join('　') : '（尚未填聯絡方式）';
+
+      const bankParts = [];
+      if (v['銀行名']) bankParts.push(v['銀行名'] + (v['銀行代碼'] ? `(${v['銀行代碼']})` : ''));
+      if (v['銀行末五碼']) bankParts.push('帳號末五碼：' + v['銀行末五碼']);
+      const bankLine = bankParts.length > 0 ? bankParts.join('　') : '（尚未填銀行資料）';
+
+      return `
+        <div class="doc-item" data-market-vendor-id="${escapeHtml(vid || '')}">
+          <div class="doc-main">
+            <div class="doc-title">${escapeHtml(v['品牌名稱'] || '（未命名）')}</div>
+            <div class="doc-meta">${escapeHtml(contactLine)}</div>
+            <div class="doc-meta">${escapeHtml(bankLine)}</div>
+            ${v['備註'] ? `<div class="doc-meta">${escapeHtml(v['備註'])}</div>` : ''}
+            <div class="doc-actions">
+              <button type="button" class="secondary btn-market-vendor-edit" data-market-vendor-edit-id="${escapeHtml(vid || '')}">編輯資料</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    box.innerHTML = html;
+
+    box.querySelectorAll('.btn-market-vendor-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = vendors.find(x => String(x['編號']) === btn.dataset.marketVendorEditId);
+        if (v) openEditModal('marketVendor', v, loadMarketVendorList);
+      });
+    });
+  } catch (err) {
+    box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
+    console.error('讀取市集廠商名單失敗', err);
+  }
+}
+
+// 「市集匯款查詢」：把市集記帳裡「品牌名稱」有填的記錄整理出來，可以切換搜品牌或搜場次，
+// 即時依關鍵字過濾，方便辦退款時查詢是哪一場、哪個品牌、匯了多少。
+let marketVendorSearchMode = 'brand'; // 'brand' 搜品牌 | 'session' 搜場次
+let marketVendorSearchRowsCache = null;
+let marketVendorSearchSetup = false;
+
+async function setupMarketVendorSearch() {
+  if (!marketVendorSearchSetup) {
+    const brandBtn = document.getElementById('market-vendor-search-by-brand-btn');
+    const sessionBtn = document.getElementById('market-vendor-search-by-session-btn');
+    const input = document.getElementById('market-vendor-search-input');
+    const hint = document.getElementById('market-vendor-search-hint');
+
+    brandBtn.addEventListener('click', () => {
+      marketVendorSearchMode = 'brand';
+      brandBtn.classList.add('active');
+      sessionBtn.classList.remove('active');
+      hint.textContent = '（輸入品牌名稱關鍵字）';
+      input.placeholder = '例如：品牌A';
+      renderMarketVendorSearchResult(input.value.trim());
+    });
+    sessionBtn.addEventListener('click', () => {
+      marketVendorSearchMode = 'session';
+      sessionBtn.classList.add('active');
+      brandBtn.classList.remove('active');
+      hint.textContent = '（輸入場次關鍵字，例如日期或市集名稱）';
+      input.placeholder = '例如：8/2 大安公園市集';
+      renderMarketVendorSearchResult(input.value.trim());
+    });
+    input.addEventListener('input', () => {
+      renderMarketVendorSearchResult(input.value.trim());
+    });
+    marketVendorSearchSetup = true;
+  }
+
+  const box = document.getElementById('market-vendor-search-result');
+  box.innerHTML = '<p class="hint">載入中…</p>';
+  try {
+    const res = await apiGet({ action: 'list', type: 'ledgerMarket' });
+    if (!res.ok) {
+      box.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(res.error || '')}</p>`;
+      return;
+    }
+    // 只保留「品牌名稱」有填的記錄，跟一般市集記帳（沒有品牌名稱的收支）分開
+    marketVendorSearchRowsCache = (res.data || []).filter(r => String(r['品牌名稱'] || '').trim() !== '');
+    const input = document.getElementById('market-vendor-search-input');
+    renderMarketVendorSearchResult(input.value.trim());
+  } catch (err) {
+    box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
+    console.error('讀取市集匯款查詢資料失敗', err);
+  }
+}
+
+function renderMarketVendorSearchResult(keyword) {
+  const box = document.getElementById('market-vendor-search-result');
+  if (!box) return;
+  const rows = marketVendorSearchRowsCache || [];
+
+  if (!keyword) {
+    box.innerHTML = '<p class="hint">請先輸入關鍵字搜尋。</p>';
+    return;
+  }
+
+  const field = marketVendorSearchMode === 'brand' ? '品牌名稱' : '場次別';
+  const matched = rows
+    .filter(r => String(r[field] || '').includes(keyword))
+    .sort((a, b) => String(b['日期'] || '').localeCompare(String(a['日期'] || '')));
+
+  if (matched.length === 0) {
+    box.innerHTML = '<p class="hint">沒有符合的記錄。</p>';
+    return;
+  }
+
+  const totalAmount = matched.reduce((sum, r) => sum + (Number(r['支出']) || 0) - (Number(r['收入']) || 0), 0);
+
+  const rowsHtml = matched.map(r => `
+    <tr>
+      <td>${escapeHtml(r['日期'] || '')}</td>
+      <td>${escapeHtml(r['場次別'] || '（未填場次別）')}</td>
+      <td>${escapeHtml(r['品牌名稱'] || '')}</td>
+      <td>${escapeHtml(r['帳目類別'] || '')}</td>
+      <td class="amt">${r['支出'] ? Number(r['支出']).toLocaleString() : (r['收入'] ? '收 ' + Number(r['收入']).toLocaleString() : '-')}</td>
+      <td>${escapeHtml(r['備註'] || '')}</td>
+    </tr>
+  `).join('');
+
+  box.innerHTML = `
+    <p class="hint">共找到 ${matched.length} 筆，匯款支出合計 ${totalAmount.toLocaleString()}</p>
+    <div class="table-wrap">
+      <table class="cat-table">
+        <thead><tr><th>日期</th><th>場次別</th><th>品牌名稱</th><th>帳目類別</th><th>金額</th><th>備註</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+  enhanceScrollableTables(box);
 }
 
 // 「換約」彈窗：廠商合約金額到達目標、要簽新合約時用。填新的合約目標金額＋新合約從哪個月份開始算，

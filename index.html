@@ -733,6 +733,64 @@
     </div>
   </section>
 
+  <!-- ============ 市集廠商（市集擺攤合作品牌的基本資料＋銀行資料，先建好，匯款時不用每次再跟品牌索取帳號） ============ -->
+  <section id="view-market-vendor" class="view content-view">
+    <div class="card">
+      <h2>新增市集廠商</h2>
+      <p class="hint">先建好品牌的銀行資料，之後要匯款時就不用再問一次；不需要合約目標，比「廠商名單」簡單。</p>
+      <form class="grid" id="market-vendor-form" data-type="marketVendor">
+        <label>品牌名稱
+          <input type="text" name="品牌名稱" required />
+        </label>
+        <label>聯絡人<span class="optional-note">（選填）</span>
+          <input type="text" name="聯絡人" />
+        </label>
+        <label>電話<span class="optional-note">（選填）</span>
+          <input type="text" name="電話" />
+        </label>
+        <label>銀行名<span class="optional-note">（選填）</span>
+          <input type="text" name="銀行名" placeholder="例如：兆豐銀行" />
+        </label>
+        <label>銀行代碼<span class="optional-note">（選填）</span>
+          <input type="text" name="銀行代碼" placeholder="例如：017" />
+        </label>
+        <label>銀行帳號<span class="optional-note">（選填）</span>
+          <input type="text" name="銀行帳號" />
+        </label>
+        <label>銀行末五碼<span class="optional-note">（選填，卡片上只會顯示這裡的末五碼）</span>
+          <input type="text" name="銀行末五碼" />
+        </label>
+        <label class="full">備註<span class="optional-note">（選填）</span>
+          <textarea name="備註"></textarea>
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">新增市集廠商</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>市集廠商名單</h2>
+      <div id="market-vendor-list-content"><p class="hint">載入中…</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 市集匯款查詢（每場市集有哪些品牌參加、各匯了多少，方便辦退款時查詢） ============ -->
+  <section id="view-market-vendor-search" class="view content-view">
+    <div class="card">
+      <h2>市集匯款查詢</h2>
+      <p class="hint">從「市集」記帳裡「品牌名稱」有填的記錄整理出來，可以切換搜品牌或搜場次，方便辦退款時查詢。</p>
+      <div class="toggle-row">
+        <button type="button" class="active" id="market-vendor-search-by-brand-btn">搜品牌</button>
+        <button type="button" id="market-vendor-search-by-session-btn">搜場次</button>
+      </div>
+      <label style="margin-top:12px;">關鍵字<span class="optional-note" id="market-vendor-search-hint">（輸入品牌名稱關鍵字）</span>
+        <input type="text" id="market-vendor-search-input" placeholder="輸入關鍵字即時搜尋" autocomplete="off" />
+      </label>
+      <div id="market-vendor-search-result" style="margin-top:12px;"><p class="hint">請先輸入關鍵字搜尋。</p></div>
+    </div>
+  </section>
+
   <!-- ============ 記帳（市集／教育／選品店／門人，四個帳戶各自記帳，帳戶餘額網頁自動即時算好） ============ -->
   <section id="view-ledger-entry" class="view content-view">
     <div class="card">
@@ -759,6 +817,13 @@
             <input type="text" name="場次別" id="ledger-session-input" placeholder="例如：8/2 大安公園市集、瑜珈班" autocomplete="off" />
             <button type="button" class="combo-toggle" id="ledger-session-toggle" aria-label="選擇場次別">▾</button>
             <div class="combo-list" id="ledger-session-options"></div>
+          </div>
+        </label>
+        <label id="ledger-brand-field" style="display:none;">品牌名稱<span class="optional-note">（市集合作品牌，用於「市集匯款查詢」；點▾選之前填過的）</span>
+          <div class="combo-wrap" id="ledger-brand-combo">
+            <input type="text" name="品牌名稱" id="ledger-brand-input" placeholder="例如：品牌A" autocomplete="off" />
+            <button type="button" class="combo-toggle" id="ledger-brand-toggle" aria-label="選擇品牌">▾</button>
+            <div class="combo-list" id="ledger-brand-options"></div>
           </div>
         </label>
         <label>項目明細
