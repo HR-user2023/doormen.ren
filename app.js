@@ -54,7 +54,8 @@ const CATEGORIES = [
     subs: [
       { key: 'ledger-entry', label: '逐筆記帳' },
       { key: 'ledger-overview', label: '本月收支總覽' },
-      { key: 'ledger-invoice', label: '發票待開立' }
+      { key: 'ledger-invoice', label: '發票待開立' },
+      { key: 'market-vendor-search', label: '市集匯款查詢' }
     ]
   },
   {
@@ -71,8 +72,7 @@ const CATEGORIES = [
     subs: [
       { key: 'vendor-list', label: '廠商名單' },
       { key: 'vendor-payment', label: '貨款登記' },
-      { key: 'market-vendor', label: '市集廠商' },
-      { key: 'market-vendor-search', label: '市集匯款查詢' }
+      { key: 'market-vendor', label: '市集廠商' }
     ]
   }
 ];
@@ -123,7 +123,7 @@ const COLUMN_ORDER = {
   project: ['專案名稱', '專案類型', '主要負責人', '介紹人', '說明', '開始日期', '預計完成日', '備註'],
   projectItem: ['專案名稱', '事項內容', '負責人', '進度(%)', '狀態', '備註'],
   projectSettlement: ['專案名稱', '月份', '收入', '成本', '專案金額', '主要負責人分潤金額', '介紹人分潤金額', '公司利潤金額', '完成狀態', '放行狀態', '備註'],
-  expense: ['申請日期', '申請人', '項目名稱', '金額', '說明', '審核狀態', '審核人', '審核日期', '收據附件', '備註'],
+  expense: ['申請日期', '申請人', '所屬部門', '請款項目', '所屬匯款帳戶', '項目名稱', '金額', '說明', '審核狀態', '審核人', '審核日期', '收據附件', '備註'],
   attendance: ['日期', '姓名', '類型', '原因', '時數/天數', '本月累計次數', '備註'],
   inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '是否需補貨', '備註'],
   order: ['訂購日期', '品項名稱', '數量', '單價', '金額', '訂購人', '客戶/對象', '狀態', '備註'],
@@ -135,7 +135,7 @@ const COLUMN_ORDER = {
   vendorPayment: ['廠商名稱', '月份', '貨款金額', '備註']
 };
 
-const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態', '票種', '身分', '出席狀態', '課程項目', '購買類型']);
+const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態', '票種', '身分', '出席狀態', '課程項目', '購買類型', '所屬部門', '請款項目', '所屬匯款帳戶']);
 const LINK_COLUMNS = new Set(['收據附件']);
 
 // 明細列表用：點一列可以打開來源文件的詳細頁（目前所有明細列表都已改成卡片式，暫時沒有用到，保留機制供之後使用）
@@ -206,6 +206,9 @@ const FIELD_META = {
   expense: {
     申請日期: { type: 'date' },
     申請人: { type: 'partner' },
+    所屬部門: { type: 'select', options: ['業務', '教育', '營運', '財務', '設計', '其他'] },
+    請款項目: { type: 'select', options: ['市集', '課程', '公關', '專案印刷', '應用程式', '其他項目'] },
+    所屬匯款帳戶: { type: 'select', options: ['門人', '市集', '教育', '選品店'] },
     項目名稱: { type: 'text' },
     金額: { type: 'number' },
     說明: { type: 'text' },
@@ -4539,6 +4542,7 @@ async function loadExpenseList() {
             <div class="doc-title">${escapeHtml(r['項目名稱'] || '（未命名）')} ${tagHtml(r['審核狀態'])}</div>
             <div class="doc-meta">${escapeHtml(r['申請人'] || '')}　${escapeHtml(r['申請日期'] || '')}</div>
             <div class="doc-meta">金額 ${(Number(r['金額']) || 0).toLocaleString()}</div>
+            <div class="doc-meta">${escapeHtml(r['所屬部門'] || '')}　${escapeHtml(r['請款項目'] || '')}　匯款帳戶：${escapeHtml(r['所屬匯款帳戶'] || '')}</div>
             <div class="doc-actions">
               <button type="button" class="secondary btn-expense-edit" data-expense-edit-id="${escapeHtml(rid || '')}">編輯</button>
               <button type="button" class="secondary btn-expense-toggle">查看完整資料</button>
