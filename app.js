@@ -125,7 +125,7 @@ const COLUMN_ORDER = {
   projectSettlement: ['專案名稱', '月份', '收入', '成本', '專案金額', '主要負責人分潤金額', '介紹人分潤金額', '公司利潤金額', '完成狀態', '放行狀態', '備註'],
   expense: ['申請日期', '申請人', '所屬部門', '請款項目', '所屬匯款帳戶', '項目名稱', '金額', '說明', '審核狀態', '審核人', '審核日期', '收據附件', '備註'],
   attendance: ['日期', '姓名', '類型', '原因', '時數/天數', '本月累計次數', '備註'],
-  inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '是否需補貨', '備註'],
+  inventory: ['品項名稱', '目前庫存', '安全庫存', '單位', '售價', '是否需補貨', '備註'],
   order: ['訂購日期', '品項名稱', '數量', '單價', '金額', '訂購人', '客戶/對象', '狀態', '備註'],
   member: ['會員名稱', '聯絡人', '電話', 'Email', '會員等級', '年費', '押金', '銀行', '帳號', '城市', '所屬區域',
            '加入日期', '到期日', '會員狀態', '介紹人', '地址', '品牌理念評估', '營運狀況評估', '備註'],
@@ -227,6 +227,7 @@ const FIELD_META = {
     目前庫存: { type: 'number' },
     安全庫存: { type: 'number' },
     單位: { type: 'text' },
+    售價: { type: 'number', optional: true },
     備註: { type: 'text' }
   },
   order: {
@@ -623,6 +624,7 @@ function showView(viewKey) {
   if (viewKey === 'vendor-payment') populateVendorPaymentSelect();
   if (viewKey === 'market-vendor') loadMarketVendorList();
   if (viewKey === 'market-vendor-search') setupMarketVendorSearch();
+  if (viewKey === 'product-orders') loadInventoryPriceCache();
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -713,6 +715,41 @@ async function loadDatalist(type, field, elementId) {
   } catch (err) {
     console.error('讀取建議清單失敗', err);
   }
+}
+
+// ---------- 商品「售價」→「訂單紀錄」自動帶入單價：讀一次庫存清單，記住每個品項名稱對應的售價 ----------
+// 「訂單紀錄」表單選（或打）品項名稱時，如果剛好對得上「商品建立」填過售價的品項，就自動帶入「單價」，
+// 省得每次都要回頭查售價；「單價」欄位還是可以手動再調整（例如給折扣），不會被鎖住。
+let inventoryPriceMap = {};
+
+async function loadInventoryPriceCache() {
+  try {
+    const res = await apiGet({ action: 'list', type: 'inventory' });
+    const el = document.getElementById('inventory-name-list');
+    if (!res.ok) return;
+    const names = [...new Set(res.data.map(r => r['品項名稱']).filter(Boolean))];
+    if (el) el.innerHTML = names.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+    inventoryPriceMap = {};
+    res.data.forEach(r => {
+      const name = r['品項名稱'];
+      const price = Number(r['售價']);
+      if (name && r['售價'] !== undefined && r['售價'] !== '' && !isNaN(price)) {
+        inventoryPriceMap[name] = price;
+      }
+    });
+  } catch (err) {
+    console.error('讀取商品售價失敗', err);
+  }
+}
+
+function setupOrderPriceAutofill() {
+  const nameInput = document.getElementById('order-item-name-input');
+  const priceInput = document.getElementById('order-price-input');
+  if (!nameInput || !priceInput) return;
+  nameInput.addEventListener('input', () => {
+    const price = inventoryPriceMap[nameInput.value];
+    if (price !== undefined) priceInput.value = price;
+  });
 }
 
 // ---------- 課程列表（課程只有名稱，授課老師跟票種都在點卡片後開的彈窗裡管理） ----------
@@ -4338,7 +4375,7 @@ function setupForms() {
             const viewKey = el.closest('.content-view').id.replace('view-', '');
             loadList(type, viewKey);
           });
-          if (type === 'inventory') loadDatalist('inventory', '品項名稱', 'inventory-name-list');
+          if (type === 'inventory') loadInventoryPriceCache();
           if (type === 'course') loadCourseList();
           if (type === 'classSession') updateClassSessionTeacherOptions();
           if (type === 'vendor') { loadVendorList(); populateVendorPaymentSelect(); }
@@ -5043,6 +5080,7 @@ async function init() {
   setupSettlementForm();
   setupExpenseItemQuickForm();
   setupMemberTierAutofill();
+  setupOrderPriceAutofill();
   setupVendorDiscountTypeHint();
   setupVendorPaymentForm();
   syncProjectSelectName('settlement-project-select', 'settlement-project-name');
@@ -5109,7 +5147,7 @@ async function init() {
   loadPartners();
   loadInstructors();
   loadProjectNames();
-  loadDatalist('inventory', '品項名稱', 'inventory-name-list');
+  loadInventoryPriceCache();
   populateSettlementProjectSelect();
   populateExpenseItemProjectSelect();
   loadDashboardStats();

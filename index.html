@@ -398,6 +398,9 @@
         <label>單位
           <input type="text" name="單位" placeholder="例如：個、件" />
         </label>
+        <label>售價<span class="optional-note">（選填，填了之後「訂單紀錄」選同樣品項名稱會自動帶入單價）</span>
+          <input type="number" name="售價" min="0" step="1" />
+        </label>
         <label class="full">備註
           <input type="text" name="備註" />
         </label>
@@ -422,15 +425,15 @@
         <label>訂購日期
           <input type="date" name="訂購日期" required />
         </label>
-        <label>品項名稱
-          <input type="text" name="品項名稱" required list="inventory-name-list" />
+        <label>品項名稱<span class="optional-note">（選了有填售價的品項，下面單價會自動帶入）</span>
+          <input type="text" name="品項名稱" id="order-item-name-input" required list="inventory-name-list" />
           <datalist id="inventory-name-list"></datalist>
         </label>
         <label>數量
           <input type="number" name="數量" min="1" step="1" required />
         </label>
-        <label>單價
-          <input type="number" name="單價" min="0" step="1" required />
+        <label>單價<span class="optional-note">（選填品項名稱後可能自動帶入，仍可手動調整）</span>
+          <input type="number" name="單價" id="order-price-input" min="0" step="1" required />
         </label>
         <label>訂購人
           <select name="訂購人" class="partner-select" required></select>
