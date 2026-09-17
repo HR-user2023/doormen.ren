@@ -4553,8 +4553,13 @@ async function loadMemberList() {
 // 「請款紀錄」卡片列表：一筆請款一張卡片，常用資訊（項目名稱、審核狀態、申請人、申請日期、金額）直接看得到，
 // 比較不常看的資料（說明、審核人、審核日期、收據附件、備註）收在「查看完整資料」裡；「核准」「退回」按鈕在「待審核」時才會出現，
 // 不用再像原本的表格一樣橫向捲動才按得到按鈕。
+// 請款紀錄的資料快取，讓「篩選申請人」「篩選審核狀態」切換時可以直接在前端重新篩選，不用每次都重新跟 Google 要一次資料
+let expenseListCache = [];
+
 async function loadExpenseList() {
   const box = document.getElementById('expense-list-content');
+  const applicantSel = document.getElementById('expense-filter-applicant');
+  const statusSel = document.getElementById('expense-filter-status');
   if (!box) return;
   box.innerHTML = '<p class="hint">載入中…</p>';
   try {
@@ -4563,13 +4568,64 @@ async function loadExpenseList() {
       box.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(res.error || '')}</p>`;
       return;
     }
-    const rows = (res.data || []).slice().reverse(); // 最新在前
-    if (rows.length === 0) {
-      box.innerHTML = '<p class="hint">目前還沒有請款紀錄。</p>';
-      return;
-    }
+    expenseListCache = (res.data || []).slice().reverse(); // 最新在前
 
-    const html = rows.map(r => {
+    if (applicantSel && !applicantSel.dataset.wired) {
+      applicantSel.addEventListener('change', renderExpenseList);
+      applicantSel.dataset.wired = '1';
+    }
+    if (statusSel && !statusSel.dataset.wired) {
+      statusSel.addEventListener('change', renderExpenseList);
+      statusSel.dataset.wired = '1';
+    }
+    populateExpenseApplicantFilterOptions();
+    renderExpenseList();
+  } catch (err) {
+    box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
+    console.error('讀取請款紀錄失敗', err);
+  }
+}
+
+// 「篩選申請人」下拉選單：只列出實際有請款紀錄的申請人姓名（依筆畫/字母排序），不是整份夥伴名單，
+// 避免列出從來沒申請過請款的人，選單反而變得很長很難找
+function populateExpenseApplicantFilterOptions() {
+  const sel = document.getElementById('expense-filter-applicant');
+  if (!sel) return;
+  const current = sel.value;
+  const names = new Set();
+  expenseListCache.forEach(r => {
+    const name = (r['申請人'] || '').trim();
+    if (name) names.add(name);
+  });
+  const sortedNames = Array.from(names).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  sel.innerHTML = '<option value="">全部</option>' +
+    sortedNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  if (Array.from(sel.options).some(o => o.value === current)) sel.value = current;
+}
+
+function renderExpenseList() {
+  const box = document.getElementById('expense-list-content');
+  const applicantSel = document.getElementById('expense-filter-applicant');
+  const statusSel = document.getElementById('expense-filter-status');
+  if (!box) return;
+  const applicantFilter = applicantSel ? applicantSel.value : '';
+  const statusFilter = statusSel ? statusSel.value : '';
+
+  if (expenseListCache.length === 0) {
+    box.innerHTML = '<p class="hint">目前還沒有請款紀錄。</p>';
+    return;
+  }
+
+  let rows = expenseListCache;
+  if (applicantFilter) rows = rows.filter(r => (r['申請人'] || '').trim() === applicantFilter);
+  if (statusFilter) rows = rows.filter(r => r['審核狀態'] === statusFilter);
+
+  if (rows.length === 0) {
+    box.innerHTML = '<p class="hint">沒有符合篩選條件的請款紀錄。</p>';
+    return;
+  }
+
+  const html = rows.map(r => {
       const rid = r['編號'];
       const isPending = r['審核狀態'] === '待審核';
 
@@ -4636,10 +4692,6 @@ async function loadExpenseList() {
         decideExpense(btn.dataset.expenseId, btn.dataset.decision, loadExpenseList);
       });
     });
-  } catch (err) {
-    box.innerHTML = '<p class="hint">讀取失敗，請確認網路連線</p>';
-    console.error('讀取請款紀錄失敗', err);
-  }
 }
 
 // ---------- 廠商：廠商名單（基本資料＋銀行資料＋合約目標金額）＋ 貨款登記（跟分潤結算一樣，每個月一筆，自動加總） ----------

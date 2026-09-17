@@ -539,6 +539,21 @@
       <label>審核人（要核准／退回前，請先選自己的名字）
         <select id="approver-select" class="partner-select"></select>
       </label>
+      <div class="field-grid">
+        <label>篩選申請人
+          <select id="expense-filter-applicant">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>篩選審核狀態
+          <select id="expense-filter-status">
+            <option value="">全部</option>
+            <option value="待審核">待審核</option>
+            <option value="已核准">已核准</option>
+            <option value="已退回">已退回</option>
+          </select>
+        </label>
+      </div>
       <div id="expense-list-content"><p class="hint">載入中…</p></div>
     </div>
   </section>
