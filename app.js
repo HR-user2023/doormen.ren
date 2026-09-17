@@ -375,14 +375,34 @@ function clearStoredPassword() {
   try { localStorage.removeItem(APP_PWD_KEY); } catch (e) {}
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Google Apps Script 偶爾會短暫塞車（例如同時有好幾個人在用、或 Google 那邊剛好比較忙），
+// 造成單次讀取資料失敗或逾時，重新整理頁面通常就會恢復正常。因為「讀取」只是查詢、不會重複新增資料，
+// 失敗時在這裡自動重試最多 2 次（間隔 0.6 秒、1.2 秒）很安全，大部分偶發的塞車使用者根本不會感覺到，
+// 不用自己手動重新整理。「新增」「更新」（apiPostRaw）刻意不做自動重試，避免萬一資料其實已經送達 Google
+// 那邊、只是回應比較慢，重試變成不小心送出兩筆重複的資料。
 async function apiGet(params) {
   const url = new URL(APPS_SCRIPT_URL);
   Object.keys(params).forEach(k => url.searchParams.set(k, params[k]));
   url.searchParams.set('pwd', getStoredPassword());
-  const res = await fetch(url.toString());
-  const data = await res.json();
-  if (data && data.authError) { clearStoredPassword(); location.reload(); }
-  return data;
+
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url.toString());
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data && data.authError) { clearStoredPassword(); location.reload(); }
+      return data;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 2) await sleep(600 * (attempt + 1));
+    }
+  }
+  throw lastErr;
 }
 
 // 統一的 POST 呼叫：用 text/plain 送出，避免瀏覽器對 Apps Script 發出 CORS 預檢請求（Apps Script 無法處理 OPTIONS）
