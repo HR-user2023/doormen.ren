@@ -800,6 +800,22 @@ details.session-item[open] > summary { border-bottom: 1px solid var(--border); }
 .session-sub-table td.amt.in { color: var(--ok); }
 .session-sub-table td.amt.out { color: var(--danger); }
 
+details.session-item-detail {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+details.session-item-detail > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+details.session-item-detail > summary::-webkit-details-marker { display: none; }
+details.session-item-detail > summary::before { content: "▸ "; }
+details.session-item-detail[open] > summary::before { content: "▾ "; }
+
 @media (max-width: 420px) {
   details.session-item > summary { flex-wrap: wrap; row-gap: 6px; }
   .session-name { flex-basis: 100%; white-space: normal; }

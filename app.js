@@ -3934,13 +3934,14 @@ function renderLedgerSessionBreakdown(monthRows) {
     const inc = Number(r['收入']) || 0;
     const out = Number(r['支出']) || 0;
     const session = r['場次別'] || '未填場次別';
-    if (!sessions[session]) sessions[session] = { in: 0, out: 0, cats: {} };
+    if (!sessions[session]) sessions[session] = { in: 0, out: 0, cats: {}, rows: [] };
     sessions[session].in += inc;
     sessions[session].out += out;
     const cat = r['帳目類別'] || '（未分類）';
     if (!sessions[session].cats[cat]) sessions[session].cats[cat] = { in: 0, out: 0 };
     sessions[session].cats[cat].in += inc;
     sessions[session].cats[cat].out += out;
+    sessions[session].rows.push(r);
   });
 
   const sortedSessions = Object.keys(sessions).sort((a, b) => {
@@ -3961,6 +3962,20 @@ function renderLedgerSessionBreakdown(monthRows) {
           <td class="amt out">${s.cats[cat].out ? s.cats[cat].out.toLocaleString() : '-'}</td>
         </tr>
       `).join('');
+
+    // 逐筆明細：同一個場次底下每一筆記帳記錄都列出來（日期由舊到新排），方便對照這個場次每一筆錢實際花在哪裡
+    const itemRows = [...s.rows]
+      .sort((a, b) => String(a['日期'] || '').localeCompare(String(b['日期'] || '')))
+      .map(r => `
+        <tr>
+          <td>${escapeHtml(r['日期'] || '')}</td>
+          <td>${escapeHtml(r['帳目類別'] || '')}</td>
+          <td>${escapeHtml(r['項目明細'] || '')}</td>
+          <td class="amt in">${r['收入'] ? Number(r['收入']).toLocaleString() : '-'}</td>
+          <td class="amt out">${r['支出'] ? Number(r['支出']).toLocaleString() : '-'}</td>
+        </tr>
+      `).join('');
+
     return `
       <details class="session-item" ${idx === 0 ? 'open' : ''}>
         <summary>
@@ -3974,6 +3989,13 @@ function renderLedgerSessionBreakdown(monthRows) {
             <thead><tr><th>帳目類別</th><th>收入</th><th>支出</th></tr></thead>
             <tbody>${catRows}</tbody>
           </table>
+          <details class="session-item-detail">
+            <summary>查看這個場次的逐筆明細（共 ${s.rows.length} 筆）</summary>
+            <table class="cat-table">
+              <thead><tr><th>日期</th><th>帳目類別</th><th>項目明細</th><th>收入</th><th>支出</th></tr></thead>
+              <tbody>${itemRows}</tbody>
+            </table>
+          </details>
         </div>
       </details>
     `;
@@ -3989,7 +4011,7 @@ function renderLedgerSessionBreakdown(monthRows) {
         <span class="session-col-label">結餘</span>
       </div>
       <div class="session-list">${rows}</div>
-      <p class="hint">每一列是一個「場次」（記帳時填的「場次別」），點開可以看這個場次裡各帳目類別的收入支出明細；沒有填「場次別」的記錄會統一歸在「未填場次別」這一列。這裡是這個帳戶「全部時間」的加總，不受上面選的月份影響（上面「各帳目類別小計」還是只算選到的那個月）。</p>
+      <p class="hint">每一列是一個「場次」（記帳時填的「場次別」），點開可以看這個場次裡各帳目類別的收入支出小計；再點一次「查看這個場次的逐筆明細」，可以看到這個場次底下每一筆記帳記錄的日期、帳目類別、項目說明跟金額，例如市集想看某一場擺攤實際花了哪些支出項目、各花多少錢，都可以在這裡對到。沒有填「場次別」的記錄會統一歸在「未填場次別」這一列。這裡是這個帳戶「全部時間」的加總，不受上面選的月份影響（上面「各帳目類別小計」還是只算選到的那個月）。</p>
     </details>
   `;
 }
