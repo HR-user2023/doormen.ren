@@ -386,6 +386,44 @@ button.secondary {
   font-size: 0.82rem;
 }
 
+/* ---- 「收據／明細照片」：選檔案 + 直接拍照 兩個入口，下面接一個小預覽 ---- */
+.receipt-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.receipt-upload-row input[type="file"] { flex: 1 1 auto; min-width: 0; }
+.receipt-upload-row button.secondary { flex: 0 0 auto; white-space: nowrap; }
+
+.receipt-preview[hidden] { display: none; }
+.receipt-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--tint);
+}
+.receipt-preview img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.receipt-preview-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .todo-row {
   display: grid;
   grid-template-columns: 2fr 1.2fr 1fr auto;

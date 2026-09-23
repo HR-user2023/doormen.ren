@@ -515,7 +515,12 @@
           <textarea name="說明" placeholder="請說明用途"></textarea>
         </label>
         <label class="full">收據／明細照片
-          <input type="file" id="expense-receipt" accept="image/*" />
+          <div class="receipt-upload-row">
+            <input type="file" id="expense-receipt" accept="image/*" />
+            <button type="button" id="expense-receipt-camera-btn" class="secondary">📷 直接拍照</button>
+          </div>
+          <input type="file" id="expense-receipt-camera-input" accept="image/*" capture="environment" style="display:none;" />
+          <div id="expense-receipt-preview" class="receipt-preview" hidden></div>
         </label>
         <label class="full">備註
           <input type="text" name="備註" />
@@ -527,6 +532,7 @@
       </form>
       <ul class="hint-list">
         <li>送出後審核狀態為「待審核」，管理者可在「請款紀錄」頁籤核准／退回，或直接在 Google Sheet 上處理</li>
+        <li>「選擇檔案」可以挑手機相簿裡既有的照片；「📷 直接拍照」會直接開啟相機拍一張新照片，兩個擇一使用即可</li>
         <li>照片檔案建議 5MB 以內</li>
       </ul>
     </div>

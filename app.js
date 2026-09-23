@@ -3522,9 +3522,54 @@ function fileToBase64(file) {
   });
 }
 
+// 「收據／明細照片」欄位有兩個輸入來源：一般「選擇檔案」（可以挑手機相簿裡既有的照片）跟
+// 「📷 直接拍照」（用 capture="environment" 直接叫出相機拍新照片），這裡記住「最後選的那一張」，
+// 兩個來源只要選了其中一個，另一個沒選也沒關係，送出時一律用這個變數裡的檔案。
+let expenseSelectedReceiptFile = null;
+
+function renderExpenseReceiptPreview() {
+  const box = document.getElementById('expense-receipt-preview');
+  if (!box) return;
+  if (!expenseSelectedReceiptFile) {
+    box.hidden = true;
+    box.innerHTML = '';
+    return;
+  }
+  const url = URL.createObjectURL(expenseSelectedReceiptFile);
+  box.hidden = false;
+  box.innerHTML = `
+    <img src="${url}" alt="已選擇的照片預覽" />
+    <span class="receipt-preview-name">${escapeHtml(expenseSelectedReceiptFile.name || '已選擇照片')}</span>
+    <button type="button" id="expense-receipt-clear-btn" class="secondary">移除</button>
+  `;
+  document.getElementById('expense-receipt-clear-btn').addEventListener('click', () => {
+    expenseSelectedReceiptFile = null;
+    document.getElementById('expense-receipt').value = '';
+    document.getElementById('expense-receipt-camera-input').value = '';
+    renderExpenseReceiptPreview();
+  });
+}
+
 function setupExpenseForm() {
   const form = document.getElementById('expense-form');
   if (!form) return;
+
+  const galleryInput = document.getElementById('expense-receipt');
+  const cameraInput = document.getElementById('expense-receipt-camera-input');
+  const cameraBtn = document.getElementById('expense-receipt-camera-btn');
+
+  if (cameraBtn && cameraInput) {
+    cameraBtn.addEventListener('click', () => cameraInput.click());
+  }
+  [galleryInput, cameraInput].forEach(input => {
+    if (!input) return;
+    input.addEventListener('change', () => {
+      if (input.files[0]) {
+        expenseSelectedReceiptFile = input.files[0];
+        renderExpenseReceiptPreview();
+      }
+    });
+  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -3534,8 +3579,7 @@ function setupExpenseForm() {
     const data = {};
     new FormData(form).forEach((value, key) => { data[key] = value; });
 
-    const fileInput = document.getElementById('expense-receipt');
-    const selectedFile = fileInput.files[0];
+    const selectedFile = expenseSelectedReceiptFile;
 
     btn.disabled = true;
     msg.textContent = selectedFile ? '上傳附件中…' : '送出中…';
@@ -3560,6 +3604,8 @@ function setupExpenseForm() {
         msg.textContent = '✅ 已送出（編號：' + res.id + '）';
         msg.className = 'status-msg ok';
         form.reset();
+        expenseSelectedReceiptFile = null;
+        renderExpenseReceiptPreview();
       } else {
         msg.textContent = '❌ 送出失敗：' + res.error;
         msg.className = 'status-msg error';
