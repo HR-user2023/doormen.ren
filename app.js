@@ -506,6 +506,16 @@ function isTruthyBool(v) {
   return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1';
 }
 
+// 表單送出時，如果是「網路本身出錯」（例如 fetch 直接失敗、逾時、連線中斷），跟 Apps Script
+// 有回應但明確說「不成功」（例如密碼錯誤、欄位驗證失敗）是兩種完全不同的情況：
+// 後者是真的沒存進去；前者常常是 Google 那邊比較忙、回應比較慢，瀏覽器沒等到回應就當作失敗，
+// 但 Apps Script 其實已經收到、甚至已經處理完成，資料八九不離十已經存進去了。
+// 如果兩種都顯示「❌ 送出失敗」，會讓人誤以為資料不見了，急著重新填一次，反而變成存了兩筆重複的資料。
+// 所以這種「網路本身出錯」的情況，改用比較不嚇人的提示，顏色也用黃色（警告）而不是紅色（真的失敗）。
+function submitNetworkErrorMessage(itemLabel) {
+  return `⚠️ 沒有收到 Google 的回應（通常是網路不穩定，或 Google 那邊剛好比較忙），但${itemLabel}很可能其實已經送出成功了。請先重新整理頁面確認一下：看到資料就不用再送一次；真的沒看到，再重新填寫送出一次。`;
+}
+
 // ---------- 手機畫面：確保寬表格不會把整個頁面撐開，改成表格自己左右滑動 ----------
 // 任何剛塞進 DOM 的 <table>，如果還沒有被 .table-wrap／.doc-table-wrap 包住，就自動包一層；
 // 接著量測是否真的比容器寬，是的話才在表格上方加一行「可以左右滑動」提示，避免看起來像是壞掉了。
@@ -3611,8 +3621,8 @@ function setupExpenseForm() {
         msg.className = 'status-msg error';
       }
     } catch (err) {
-      msg.textContent = '❌ 送出失敗，請確認設定或網路連線';
-      msg.className = 'status-msg error';
+      msg.textContent = submitNetworkErrorMessage('這筆請款');
+      msg.className = 'status-msg warn';
       console.error(err);
     } finally {
       btn.disabled = false;
@@ -4260,6 +4270,19 @@ async function autoSyncVendorPaymentFromLedger(accountKey, data) {
   }
 }
 
+// 記帳送出成功之後，會呼叫 refreshLedgerAccountView() 重新整理畫面上的列表／總覽，這一步如果剛好遇到
+// Google 那邊短暫塞車（例如同時很多人在用）而失敗，不應該讓整筆記帳「看起來像失敗」——資料其實已經送出、
+// 存進 Google Sheet 了，只是畫面沒有馬上更新而已。所以這裡特地包一層，讓這一步失敗的話只在成功訊息後面
+// 加一句提示，不會把 ✅ 已送出的訊息蓋成 ❌ 送出失敗，避免使用者誤以為記帳真的不見了、又重打一次。
+async function safeRefreshLedgerAccountView(msg) {
+  try {
+    await refreshLedgerAccountView();
+  } catch (err) {
+    console.error('記帳已經送出成功，但重新整理畫面時失敗（不影響已存進去的資料）', err);
+    msg.textContent += '（畫面暫時更新不出來，手動重新整理頁面就會看到，資料已經送出成功，不用重填）';
+  }
+}
+
 function setupLedgerForm() {
   const form = document.getElementById('ledger-form');
   setupLedgerCombos();
@@ -4309,7 +4332,7 @@ function setupLedgerForm() {
             msg.textContent += `，也自動更新了「${syncInfo.vendorName}」${syncInfo.month} 的貨款登記（累計 ${syncInfo.total.toLocaleString()}）`;
           }
           form.reset();
-          await refreshLedgerAccountView();
+          await safeRefreshLedgerAccountView(msg);
         } else {
           const errText = !mainOk ? (batchRes.results && batchRes.results[0] && batchRes.results[0].error) : (batchRes.results && batchRes.results[1] && batchRes.results[1].error);
           msg.textContent = '❌ 送出失敗：' + (errText || '未知錯誤');
@@ -4325,15 +4348,15 @@ function setupLedgerForm() {
             msg.textContent += `，也自動更新了「${syncInfo.vendorName}」${syncInfo.month} 的貨款登記（累計 ${syncInfo.total.toLocaleString()}）`;
           }
           form.reset();
-          await refreshLedgerAccountView();
+          await safeRefreshLedgerAccountView(msg);
         } else {
           msg.textContent = '❌ 送出失敗：' + res.error;
           msg.className = 'status-msg error';
         }
       }
     } catch (err) {
-      msg.textContent = '❌ 送出失敗，請確認網路連線';
-      msg.className = 'status-msg error';
+      msg.textContent = submitNetworkErrorMessage('這筆記帳');
+      msg.className = 'status-msg warn';
       console.error(err);
     } finally {
       btn.disabled = false;
