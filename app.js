@@ -5408,7 +5408,16 @@ async function populateShipmentReportMonthSelect() {
 
 // ---- 圓餅圖：純 SVG 自己畫，不需要額外套件、離線也能用 ----
 const SHIPMENT_PALETTE = ['#1a6b52', '#2f8f6f', '#4bab8c', '#78c2a4', '#a3d7bd', '#c8e8d7', '#e3f3ea', '#8a8a8a'];
-const SHIPMENT_OTHER_COLOR = '#c9c9c9';
+
+// 廠商數量超過預設色盤（8 色）時，用固定間隔的色相自動產生新顏色，確保不管有幾個廠商、每個顏色都不一樣，
+// 全部完整顯示、不會合併成「其他」
+function shipmentColorForIndex(i) {
+  if (i < SHIPMENT_PALETTE.length) return SHIPMENT_PALETTE[i];
+  const hue = (i * 47) % 360;
+  const sat = 45 + (i % 3) * 10;
+  const light = 42 + (i % 4) * 8;
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
+}
 
 function shipmentPt(cx, cy, r, angleDeg) {
   const a = angleDeg * Math.PI / 180;
@@ -5432,22 +5441,13 @@ function shipmentVendorRows(items) {
   rows.sort((a, b) => b.amount - a.amount);
   return rows;
 }
-// 廠商超過 8 個時，金額較小的自動合併成「其他」，圓餅圖跟圖例才不會太擠
+// 不論廠商有幾個，都完整列出、不合併成「其他」
 function buildShipmentPieData(rows) {
   let total = 0;
   rows.forEach(r => { total += r.amount; });
-  let items, folded = false;
-  if (rows.length <= 8) {
-    items = rows.map((r, i) => ({ label: r.vendor, amount: r.amount, color: SHIPMENT_PALETTE[i] }));
-  } else {
-    items = rows.slice(0, 7).map((r, i) => ({ label: r.vendor, amount: r.amount, color: SHIPMENT_PALETTE[i] }));
-    let restAmt = 0;
-    rows.slice(7).forEach(r => { restAmt += r.amount; });
-    items.push({ label: '其他', amount: restAmt, color: SHIPMENT_OTHER_COLOR });
-    folded = true;
-  }
+  const items = rows.map((r, i) => ({ label: r.vendor, amount: r.amount, color: shipmentColorForIndex(i) }));
   items.forEach(r => { r.pct = total ? (r.amount / total * 100) : 0; });
-  return { items, total, folded };
+  return { items, total };
 }
 function buildShipmentPieSvg(pieData) {
   const cx = 150, cy = 130, r = 78, rLabel = r + 36;
@@ -5528,7 +5528,6 @@ function renderShipmentReport() {
     html += `<span class="li"><span class="dot" style="background:${it.color};"></span>${escapeHtml(it.label)}</span>`;
   });
   html += '</div>';
-  if (pieData.folded) html += '<p class="rp-note">金額較小的廠商已合併為「其他」</p>';
   html += '</div></div>';
 
   box.innerHTML = html;
@@ -5540,7 +5539,19 @@ function setupShipmentReportControls() {
   const printBtn = document.getElementById('shipment-report-print-btn');
   if (storeSel) storeSel.addEventListener('change', populateShipmentReportMonthSelect);
   if (monthSel) monthSel.addEventListener('change', renderShipmentReport);
-  if (printBtn) printBtn.addEventListener('click', () => window.print());
+  if (printBtn) printBtn.addEventListener('click', () => {
+    // 列印前把分頁標題暫時換成「店家＋月份」，瀏覽器如果有開「頁首和頁尾」，最上面顯示的就是這個、
+    // 不會是「門人夥伴管理系統」；列印結束後換回原本的標題。
+    const storeSelEl = document.getElementById('shipment-report-store-select');
+    const monthSelEl = document.getElementById('shipment-report-month-select');
+    const storeName = storeSelEl && storeSelEl.selectedOptions[0] ? storeSelEl.selectedOptions[0].textContent : '';
+    const monthLabel = monthSelEl && monthSelEl.selectedOptions[0] ? monthSelEl.selectedOptions[0].textContent : '';
+    const oldTitle = document.title;
+    const printTitle = [storeName, monthLabel, '貨款明細'].filter(Boolean).join('_');
+    if (printTitle) document.title = printTitle;
+    window.print();
+    document.title = oldTitle;
+  });
 }
 
 // ---------- 初始化 ----------

@@ -884,7 +884,8 @@
   <section id="view-shipment-report" class="view content-view">
     <div class="card">
       <h2>廠商彙總報表</h2>
-      <p class="hint">選好店家與月份，下面會自動整理出各廠商出貨金額、佔比跟圓餅圖，方便開發票前先跟店家核對；按「列印／另存 PDF」就能存成一張報表。</p>
+      <p class="hint">選好店家與月份，下面會自動整理出各廠商出貨金額、佔比跟圓餅圖（不論廠商有幾個都會完整列出，不會合併），方便開發票前先跟店家核對；按「列印／另存 PDF」就能存成一張報表。</p>
+      <p class="hint">⚠️ 如果列印出來最上面多了日期、最下面多了網址，這是瀏覽器「頁首和頁尾」的預設功能，不是報表的一部分：點「列印／另存 PDF」之後，在跳出的列印視窗找「更多設定」，把「頁首和頁尾」關掉即可，瀏覽器通常會記住這個設定，之後不用每次都關。</p>
       <div class="field-grid">
         <label>店家
           <select id="shipment-report-store-select"></select>
