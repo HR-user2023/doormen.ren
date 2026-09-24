@@ -846,6 +846,62 @@
     </div>
   </section>
 
+  <!-- ============ 出貨明細登錄（一筆＝某個店家、某個月份、某個廠商的出貨金額，同店同月通常會登好幾筆） ============ -->
+  <section id="view-shipment-entry" class="view content-view">
+    <div class="card">
+      <h2>出貨明細登錄</h2>
+      <p class="hint">「店家」直接沿用「會員資料」裡的店家，不用另外再建一次；如果店家還沒出現在下拉選單，先到「會員」分類新增會員資料（地址、電話填好，「廠商彙總報表」上才會顯示）。同一個店家同一個月份，通常會分好幾筆（一個廠商一筆）登錄。全部登錄好之後，到「廠商彙總報表」選同一個店家＋月份，就能整理成一頁可列印的報表。</p>
+      <form class="grid" id="shipment-item-form">
+        <label>店家
+          <select id="shipment-store-select" required></select>
+        </label>
+        <label>月份
+          <input type="month" name="月份" required />
+        </label>
+        <label>廠商／品牌
+          <input type="text" name="廠商" required list="shipment-vendor-datalist" autocomplete="off" />
+          <datalist id="shipment-vendor-datalist"></datalist>
+        </label>
+        <label>貨款金額
+          <input type="number" name="貨款金額" min="0" step="1" required />
+        </label>
+        <label class="full">備註<span class="optional-note">（選填）</span>
+          <textarea name="備註"></textarea>
+        </label>
+        <div class="submit-row">
+          <button type="submit" class="primary">送出這筆明細</button>
+          <span class="status-msg"></span>
+        </div>
+      </form>
+    </div>
+    <div class="card">
+      <h2>出貨明細紀錄</h2>
+      <div class="table-wrap" data-list="shipmentItem"></div>
+    </div>
+  </section>
+
+  <!-- ============ 廠商彙總報表（選店家＋月份，自動整理成可列印的一頁報表：各廠商金額、佔比、圓餅圖） ============ -->
+  <section id="view-shipment-report" class="view content-view">
+    <div class="card">
+      <h2>廠商彙總報表</h2>
+      <p class="hint">選好店家與月份，下面會自動整理出各廠商出貨金額、佔比跟圓餅圖，方便開發票前先跟店家核對；按「列印／另存 PDF」就能存成一張報表。</p>
+      <div class="field-grid">
+        <label>店家
+          <select id="shipment-report-store-select"></select>
+        </label>
+        <label>月份
+          <select id="shipment-report-month-select"></select>
+        </label>
+      </div>
+      <div class="submit-row">
+        <button type="button" class="secondary" id="shipment-report-print-btn">列印／另存 PDF</button>
+      </div>
+    </div>
+    <div class="card">
+      <div id="shipment-report-content"><p class="hint">請先選擇店家與月份</p></div>
+    </div>
+  </section>
+
   <!-- ============ 記帳（市集／教育／選品店／門人，四個帳戶各自記帳，帳戶餘額網頁自動即時算好） ============ -->
   <section id="view-ledger-entry" class="view content-view">
     <div class="card">

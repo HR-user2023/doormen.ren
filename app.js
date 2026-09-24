@@ -74,6 +74,13 @@ const CATEGORIES = [
       { key: 'vendor-payment', label: '貨款登記' },
       { key: 'market-vendor', label: '市集廠商' }
     ]
+  },
+  {
+    key: 'shipment', title: '出貨', desc: '店家出貨明細、廠商彙總報表',
+    subs: [
+      { key: 'shipment-entry', label: '出貨明細登錄' },
+      { key: 'shipment-report', label: '廠商彙總報表' }
+    ]
   }
 ];
 
@@ -113,7 +120,8 @@ const VIEW_DATA_TYPE = {
   'attendance-track': 'attendance',
   'ticket-sales': 'ticket',
   'class-session': 'classSession',
-  'vendor-payment': 'vendorPayment'
+  'vendor-payment': 'vendorPayment',
+  'shipment-entry': 'shipmentItem'
 };
 
 const COLUMN_ORDER = {
@@ -132,7 +140,8 @@ const COLUMN_ORDER = {
   ticketType: ['課程名稱', '票種', '堂數', '會員金額', '非會員金額', '可指定老師人數', '備註'],
   ticket: ['購買日期', '課程項目', '票種', '身分', '購買類型', '所屬店家', '購買人', '聯絡電話', 'LINE ID', '金額', '購買堂數', '指定老師', '備註'],
   classSession: ['課程項目', '日期', '師資', '課程名稱', '人數', '收入', '成本', '盈利', '備註'],
-  vendorPayment: ['廠商名稱', '月份', '貨款金額', '備註']
+  vendorPayment: ['廠商名稱', '月份', '貨款金額', '備註'],
+  shipmentItem: ['店家名稱', '月份', '廠商', '貨款金額', '備註']
 };
 
 const TAG_COLUMNS = new Set(['狀態', '審核狀態', '是否需補貨', '類型', '會員等級', '會員狀態', '完成狀態', '放行狀態', '票種', '身分', '出席狀態', '課程項目', '購買類型', '所屬部門', '請款項目', '所屬匯款帳戶']);
@@ -147,7 +156,8 @@ const TYPE_LABEL = {
   projectSettlement: '分潤結算', projectExpenseItem: '支出項目', expense: '請款紀錄',
   attendance: '差勤紀錄', inventory: '庫存品項', order: '訂單', member: '會員資料',
   course: '課程', instructor: '講師', ticketType: '票種設定', ticket: '售票紀錄', classSession: '上課紀錄',
-  vendor: '廠商資料', vendorPayment: '貨款登記', marketVendor: '市集廠商資料'
+  vendor: '廠商資料', vendorPayment: '貨款登記', marketVendor: '市集廠商資料',
+  shipmentItem: '出貨明細'
 };
 
 // type: text / textarea / number / date / month / select / partner / member / account
@@ -329,6 +339,12 @@ const FIELD_META = {
     銀行代碼: { type: 'text', optional: true },
     銀行帳號: { type: 'text', optional: true },
     銀行末五碼: { type: 'text', optional: true },
+    備註: { type: 'text', optional: true }
+  },
+  // 「店家編號」「店家名稱」「月份」「廠商」跟 Code.gs 的 LOCKED_FIELDS 一致，編輯時不能改
+  // （要改的話用「出貨明細登錄」重新登記一筆），只能改「貨款金額」「備註」
+  shipmentItem: {
+    貨款金額: { type: 'number' },
     備註: { type: 'text', optional: true }
   }
 };
@@ -655,6 +671,8 @@ function showView(viewKey) {
   if (viewKey === 'market-vendor') loadMarketVendorList();
   if (viewKey === 'market-vendor-search') setupMarketVendorSearch();
   if (viewKey === 'product-orders') loadInventoryPriceCache();
+  if (viewKey === 'shipment-entry') { populateShipmentStoreSelect(); loadShipmentVendorDatalist(); }
+  if (viewKey === 'shipment-report') populateShipmentReportStoreSelect();
 
   const type = VIEW_DATA_TYPE[viewKey];
   if (type) loadList(type, viewKey);
@@ -4457,7 +4475,7 @@ function renderInvoicePendingList(pending) {
 }
 
 // ---------- 一般表單送出（會議／專案／請款表單走各自專屬邏輯，這裡處理其餘的） ----------
-const CUSTOM_FORM_IDS = new Set(['meeting-form', 'project-form', 'expense-form', 'ledger-form', 'ticket-sales-form', 'vendor-payment-form']);
+const CUSTOM_FORM_IDS = new Set(['meeting-form', 'project-form', 'expense-form', 'ledger-form', 'ticket-sales-form', 'vendor-payment-form', 'shipment-item-form']);
 
 function setupForms() {
   document.querySelectorAll('form[data-type]').forEach(form => {
@@ -4490,7 +4508,7 @@ function setupForms() {
           if (type === 'course') loadCourseList();
           if (type === 'classSession') updateClassSessionTeacherOptions();
           if (type === 'vendor') { loadVendorList(); populateVendorPaymentSelect(); }
-          if (type === 'member') loadMemberList();
+          if (type === 'member') { loadMemberList(); populateShipmentStoreSelect(); }
           if (type === 'marketVendor') loadMarketVendorList();
         } else {
           msg.textContent = '❌ 送出失敗：' + res.error;
@@ -5231,6 +5249,300 @@ function setupVendorPaymentForm() {
   });
 }
 
+// ---------- 出貨：出貨明細登錄＋廠商彙總報表（依店家＋月份自動整理成可列印的一頁報表） ----------
+// 出貨的「店家」直接沿用「會員資料」名單，不用另外再維護一份店家名單；
+// 地址／電話也是從「會員資料」的「地址」「電話」欄位帶出來，會員資料填好，報表就會自動有。
+let shipmentStoreListCache = [];
+
+async function populateShipmentStoreSelect() {
+  const sel = document.getElementById('shipment-store-select');
+  if (!sel) return;
+  try {
+    const res = await apiGet({ action: 'list', type: 'member' });
+    const stores = res.ok ? (res.data || []) : [];
+    shipmentStoreListCache = stores;
+    if (stores.length === 0) {
+      sel.innerHTML = '<option value="">請先到「會員資料」新增店家</option>';
+      return;
+    }
+    const current = sel.value;
+    sel.innerHTML = '<option value="">請選擇店家</option>' +
+      stores.map(s => `<option value="${escapeHtml(s['編號'])}">${escapeHtml(s['會員名稱'] || '')}</option>`).join('');
+    if (current) sel.value = current;
+  } catch (err) {
+    console.error('讀取會員（店家）名單失敗', err);
+  }
+}
+
+// 「廠商」欄位的建議清單：抓「出貨明細」裡出現過的所有廠商／品牌名稱，不用每次都重打
+async function loadShipmentVendorDatalist() {
+  const el = document.getElementById('shipment-vendor-datalist');
+  if (!el) return;
+  try {
+    const res = await apiGet({ action: 'list', type: 'shipmentItem' });
+    if (!res.ok) return;
+    const names = [...new Set((res.data || []).map(r => r['廠商']).filter(Boolean))];
+    el.innerHTML = names.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+  } catch (err) {
+    console.error('讀取廠商建議清單失敗', err);
+  }
+}
+
+// 出貨明細登錄：一筆＝某個店家、某個月份、某個廠商的出貨金額。同一個店家同一個月份通常會登記好幾筆
+// （一個廠商一筆），所以送出成功後只清空「廠商」「貨款金額」「備註」，保留「店家」「月份」，
+// 方便連續輸入同一個店家同一個月份的下一筆廠商明細，不用每筆都重新選一次。
+function setupShipmentItemForm() {
+  const form = document.getElementById('shipment-item-form');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    const msg = form.querySelector('.status-msg');
+    const storeId = document.getElementById('shipment-store-select').value;
+    const store = shipmentStoreListCache.find(s => String(s['編號']) === storeId);
+
+    if (!storeId || !store) {
+      msg.textContent = '❌ 請先選擇店家';
+      msg.className = 'status-msg error';
+      return;
+    }
+
+    const month = form.querySelector('input[name="月份"]').value;
+    const vendor = form.querySelector('input[name="廠商"]').value.trim();
+    const amount = form.querySelector('input[name="貨款金額"]').value;
+    const note = form.querySelector('textarea[name="備註"]').value;
+
+    if (!vendor) {
+      msg.textContent = '❌ 請填廠商／品牌名稱';
+      msg.className = 'status-msg error';
+      return;
+    }
+
+    btn.disabled = true;
+    msg.textContent = '送出中…';
+    msg.className = 'status-msg';
+
+    try {
+      const res = await apiPost('shipmentItem', {
+        店家編號: storeId, 店家名稱: store['會員名稱'], 月份: month, 廠商: vendor, 貨款金額: amount, 備註: note
+      });
+      if (res.ok) {
+        msg.textContent = '✅ 已送出（編號：' + res.id + '）';
+        msg.className = 'status-msg ok';
+        form.querySelector('input[name="廠商"]').value = '';
+        form.querySelector('input[name="貨款金額"]').value = '';
+        form.querySelector('textarea[name="備註"]').value = '';
+        loadShipmentVendorDatalist();
+        loadList('shipmentItem', 'shipment-entry');
+      } else {
+        msg.textContent = '❌ 送出失敗：' + res.error;
+        msg.className = 'status-msg error';
+      }
+    } catch (err) {
+      msg.textContent = submitNetworkErrorMessage('這筆出貨明細');
+      msg.className = 'status-msg warn';
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+// 「廠商彙總報表」：選店家＋月份，把「出貨明細」依廠商分組加總、算佔比，整理成一頁可列印的報表（含圓餅圖），
+// 開發票前可以先給店家核對。畫面上跟列印出來的都是同一份，用瀏覽器內建的「列印／另存 PDF」，行為比較穩定。
+let shipmentReportItemsCache = [];
+
+async function populateShipmentReportStoreSelect() {
+  const sel = document.getElementById('shipment-report-store-select');
+  const monthSel = document.getElementById('shipment-report-month-select');
+  if (!sel || !monthSel) return;
+  try {
+    const res = await apiGet({ action: 'list', type: 'member' });
+    const stores = res.ok ? (res.data || []) : [];
+    shipmentStoreListCache = stores;
+    const current = sel.value;
+    if (stores.length === 0) {
+      sel.innerHTML = '<option value="">請先到「會員資料」新增店家</option>';
+      monthSel.innerHTML = '';
+      renderShipmentReport();
+      return;
+    }
+    sel.innerHTML = '<option value="">請選擇店家</option>' +
+      stores.map(s => `<option value="${escapeHtml(s['編號'])}">${escapeHtml(s['會員名稱'] || '')}</option>`).join('');
+    if (current) sel.value = current;
+    await populateShipmentReportMonthSelect();
+  } catch (err) {
+    console.error('讀取會員（店家）名單失敗', err);
+  }
+}
+
+async function populateShipmentReportMonthSelect() {
+  const storeSel = document.getElementById('shipment-report-store-select');
+  const monthSel = document.getElementById('shipment-report-month-select');
+  if (!storeSel || !monthSel) return;
+  const storeId = storeSel.value;
+  if (!storeId) {
+    monthSel.innerHTML = '';
+    renderShipmentReport();
+    return;
+  }
+  try {
+    const res = await apiGet({ action: 'list', type: 'shipmentItem' });
+    const rows = res.ok ? (res.data || []) : [];
+    shipmentReportItemsCache = rows;
+    const months = [...new Set(rows.filter(r => String(r['店家編號']) === String(storeId)).map(r => r['月份']).filter(Boolean))]
+      .sort((a, b) => b.localeCompare(a));
+    if (months.length === 0) {
+      monthSel.innerHTML = '<option value="">這個店家還沒有出貨明細</option>';
+      renderShipmentReport();
+      return;
+    }
+    const current = monthSel.value;
+    monthSel.innerHTML = months.map(m => `<option value="${m}">${m.replace('-', ' 年 ')} 月</option>`).join('');
+    if (current && months.indexOf(current) !== -1) monthSel.value = current;
+    renderShipmentReport();
+  } catch (err) {
+    console.error('讀取出貨明細失敗', err);
+  }
+}
+
+// ---- 圓餅圖：純 SVG 自己畫，不需要額外套件、離線也能用 ----
+const SHIPMENT_PALETTE = ['#1a6b52', '#2f8f6f', '#4bab8c', '#78c2a4', '#a3d7bd', '#c8e8d7', '#e3f3ea', '#8a8a8a'];
+const SHIPMENT_OTHER_COLOR = '#c9c9c9';
+
+function shipmentPt(cx, cy, r, angleDeg) {
+  const a = angleDeg * Math.PI / 180;
+  return { x: cx + r * Math.sin(a), y: cy - r * Math.cos(a) };
+}
+function shipmentArcPath(cx, cy, r, startAngle, endAngle) {
+  const s = shipmentPt(cx, cy, r, startAngle), e = shipmentPt(cx, cy, r, endAngle);
+  const large = (endAngle - startAngle) > 180 ? 1 : 0;
+  return ['M', cx, cy, 'L', s.x.toFixed(2), s.y.toFixed(2), 'A', r, r, 0, large, 1, e.x.toFixed(2), e.y.toFixed(2), 'Z'].join(' ');
+}
+// 把「出貨明細」依「廠商」分組加總金額，由大到小排序
+function shipmentVendorRows(items) {
+  const map = {}, order = [];
+  items.forEach(it => {
+    const v = String(it['廠商'] || '').trim() || '未分類';
+    const amt = Number(it['貨款金額']) || 0;
+    if (!(v in map)) { map[v] = 0; order.push(v); }
+    map[v] += amt;
+  });
+  const rows = order.map(v => ({ vendor: v, amount: map[v] }));
+  rows.sort((a, b) => b.amount - a.amount);
+  return rows;
+}
+// 廠商超過 8 個時，金額較小的自動合併成「其他」，圓餅圖跟圖例才不會太擠
+function buildShipmentPieData(rows) {
+  let total = 0;
+  rows.forEach(r => { total += r.amount; });
+  let items, folded = false;
+  if (rows.length <= 8) {
+    items = rows.map((r, i) => ({ label: r.vendor, amount: r.amount, color: SHIPMENT_PALETTE[i] }));
+  } else {
+    items = rows.slice(0, 7).map((r, i) => ({ label: r.vendor, amount: r.amount, color: SHIPMENT_PALETTE[i] }));
+    let restAmt = 0;
+    rows.slice(7).forEach(r => { restAmt += r.amount; });
+    items.push({ label: '其他', amount: restAmt, color: SHIPMENT_OTHER_COLOR });
+    folded = true;
+  }
+  items.forEach(r => { r.pct = total ? (r.amount / total * 100) : 0; });
+  return { items, total, folded };
+}
+function buildShipmentPieSvg(pieData) {
+  const cx = 150, cy = 130, r = 78, rLabel = r + 36;
+  const w = 320, h = 280;
+  if (pieData.total <= 0) {
+    return `<svg viewBox="0 0 ${w} 100" width="100%" style="max-width:380px;height:auto;"><text x="${w / 2}" y="50" text-anchor="middle" font-size="13" fill="#6b6259">尚無資料</text></svg>`;
+  }
+  let angle = 0;
+  let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:380px;height:auto;">`;
+  pieData.items.forEach(it => {
+    const span = it.pct / 100 * 360;
+    if (span <= 0) return;
+    const start = angle, end = angle + span;
+    svg += `<path d="${shipmentArcPath(cx, cy, r, start, end)}" fill="${it.color}" stroke="#ffffff" stroke-width="1.5"></path>`;
+    angle = end;
+  });
+  angle = 0;
+  pieData.items.forEach(it => {
+    const span = it.pct / 100 * 360;
+    if (span <= 0) return;
+    const mid = angle + span / 2;
+    const edge = shipmentPt(cx, cy, r, mid);
+    const outer = shipmentPt(cx, cy, rLabel, mid);
+    const isRight = outer.x >= cx;
+    const anchor = isRight ? 'start' : 'end';
+    const tx = outer.x + (isRight ? 5 : -5);
+    svg += `<line x1="${edge.x.toFixed(2)}" y1="${edge.y.toFixed(2)}" x2="${outer.x.toFixed(2)}" y2="${outer.y.toFixed(2)}" stroke="#6b6259" stroke-width="1" stroke-dasharray="2,2"></line>`;
+    svg += `<text x="${tx.toFixed(2)}" y="${(outer.y - 3).toFixed(2)}" text-anchor="${anchor}" font-size="10.5" fill="#181310" font-weight="600">${escapeHtml(it.label)}</text>`;
+    svg += `<text x="${tx.toFixed(2)}" y="${(outer.y + 10).toFixed(2)}" text-anchor="${anchor}" font-size="10" fill="#3a322d">${it.pct.toFixed(1)}%</text>`;
+    angle += span;
+  });
+  svg += '</svg>';
+  return svg;
+}
+
+function renderShipmentReport() {
+  const box = document.getElementById('shipment-report-content');
+  const storeSel = document.getElementById('shipment-report-store-select');
+  const monthSel = document.getElementById('shipment-report-month-select');
+  if (!box || !storeSel || !monthSel) return;
+  const storeId = storeSel.value;
+  const month = monthSel.value;
+  if (!storeId || !month) {
+    box.innerHTML = '<p class="hint">請先選擇店家與月份</p>';
+    return;
+  }
+  const store = shipmentStoreListCache.find(s => String(s['編號']) === storeId);
+  const items = shipmentReportItemsCache.filter(r => String(r['店家編號']) === String(storeId) && String(r['月份']) === String(month));
+  if (items.length === 0) {
+    box.innerHTML = '<p class="hint">這個店家這個月份還沒有出貨明細</p>';
+    return;
+  }
+  const rows = shipmentVendorRows(items);
+  const total = rows.reduce((sum, r) => sum + r.amount, 0);
+  const pieData = buildShipmentPieData(rows);
+  const notes = [...new Set(items.map(r => r['備註']).filter(Boolean))];
+
+  let html = '<div class="report-scroll"><div class="report-page">';
+  html += `<p class="rp-address">${escapeHtml(store && store['地址'] ? store['地址'] : '（會員資料尚未填寫地址）')}</p>`;
+  html += `<p class="rp-name">${escapeHtml(store && store['會員名稱'] ? store['會員名稱'] : '（尚未命名店家）')}</p>`;
+  if (store && store['電話']) html += `<p class="rp-phone">${escapeHtml(store['電話'])}</p>`;
+  html += `<div class="rp-titlebar">${escapeHtml((store && store['會員名稱']) || '店家')} 貨款明細</div>`;
+  html += `<p class="rp-month">${escapeHtml(month.replace('-', ' 年 '))} 月</p>`;
+  html += '<p class="rp-section-title">① 貨款明細表</p>';
+  html += '<table class="rp-table"><thead><tr><th>廠商</th><th class="num">貨款金額</th><th class="num">百分比</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    const pct = total ? (r.amount / total * 100) : 0;
+    html += `<tr><td>${escapeHtml(r.vendor)}</td><td class="num">$ ${r.amount.toLocaleString()}</td><td class="num">${pct.toFixed(1)}%</td></tr>`;
+  });
+  html += `<tr class="rp-total"><td>總額</td><td class="num">$ ${total.toLocaleString()}</td><td class="num">100.0%</td></tr>`;
+  html += '</tbody></table>';
+  if (notes.length) html += `<p class="rp-note" style="text-align:left;">備註：${escapeHtml(notes.join('；'))}</p>`;
+  html += '<div class="rp-chart-section">';
+  html += '<p class="rp-section-title">② 廠商佔比</p>';
+  html += `<div class="rp-chart-wrap">${buildShipmentPieSvg(pieData)}</div>`;
+  html += '<div class="rp-legend">';
+  pieData.items.forEach(it => {
+    html += `<span class="li"><span class="dot" style="background:${it.color};"></span>${escapeHtml(it.label)}</span>`;
+  });
+  html += '</div>';
+  if (pieData.folded) html += '<p class="rp-note">金額較小的廠商已合併為「其他」</p>';
+  html += '</div></div>';
+
+  box.innerHTML = html;
+}
+
+function setupShipmentReportControls() {
+  const storeSel = document.getElementById('shipment-report-store-select');
+  const monthSel = document.getElementById('shipment-report-month-select');
+  const printBtn = document.getElementById('shipment-report-print-btn');
+  if (storeSel) storeSel.addEventListener('change', populateShipmentReportMonthSelect);
+  if (monthSel) monthSel.addEventListener('change', renderShipmentReport);
+  if (printBtn) printBtn.addEventListener('click', () => window.print());
+}
+
 // ---------- 初始化 ----------
 async function init() {
   buildHomeGrid();
@@ -5246,6 +5558,8 @@ async function init() {
   setupOrderPriceAutofill();
   setupVendorDiscountTypeHint();
   setupVendorPaymentForm();
+  setupShipmentItemForm();
+  setupShipmentReportControls();
   syncProjectSelectName('settlement-project-select', 'settlement-project-name');
   syncProjectSelectName('expense-item-project-select', 'expense-item-project-name');
   resetTodoRows();
