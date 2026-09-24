@@ -903,7 +903,17 @@ details.session-item-detail[open] > summary::before { content: "▾ "; }
   #view-shipment-report > .card:first-child { display: none !important; }
   #view-shipment-report .card:last-child { border: none; box-shadow: none; padding: 0; margin: 0; }
   .report-scroll { overflow: visible; padding: 0; }
-  .report-page { border: none; margin: 0; width: auto; min-height: 0; }
+  /* 廠商彙總報表：盡量把整份報表塞在一頁裡，邊界、間距都比畫面上看到的再縮小一點 */
+  @page { size: A4; margin: 8mm; }
+  .report-page { border: none; margin: 0; width: auto; min-height: 0; padding: 0.4cm 0.9cm; page-break-inside: avoid; }
+  .rp-titlebar { margin: 10px 0 6px; padding: 6px 10px; }
+  .rp-month { margin: 0 0 6px; }
+  .rp-section-title { margin: 0 0 5px; }
+  .rp-table { margin-bottom: 3px; }
+  .rp-table td, .rp-table th { padding: 3.5px 8px; }
+  .rp-chart-section { margin-top: 8px; }
+  .rp-chart-wrap svg { max-width: 280px !important; }
+  .rp-legend { margin-top: 3px; gap: 6px 14px; }
   .print-only {
     display: block !important;
     font-size: 1.15rem;
