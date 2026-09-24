@@ -908,7 +908,11 @@ details.session-item-detail[open] > summary::before { content: "▾ "; }
      不影響原本看習慣的間距；色塊圖例改成固定兩排（見 app.js），這樣廠商多的時候也不容易多跑出一整排、掉到第二頁 */
   @page { size: A4; margin: 10mm; }
   .report-page { border: none; margin: 0; width: auto; min-height: 0; padding: 1cm 1.5cm; page-break-inside: avoid; }
-  .rp-chart-wrap svg { max-width: 320px !important; }
+  /* 廠商一多，明細表的列數會直接把整張報表往下撐，這裡把每一列的上下留白稍微收一點（表格本身還是看得很清楚），
+     省下來的空間拿去讓廠商比較多的店家（10 幾家）也能維持印在一頁 */
+  .rp-table td, .rp-table th { padding: 5px 10px; }
+  .rp-chart-section { margin-top: 16px; }
+  .rp-chart-wrap svg { max-width: 300px !important; }
   .print-only {
     display: block !important;
     font-size: 1.15rem;
