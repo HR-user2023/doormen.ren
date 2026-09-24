@@ -893,7 +893,7 @@ details.session-item-detail[open] > summary::before { content: "▾ "; }
 .rp-note { font-size: 12px; color: #6b6259; margin-top: 6px; text-align: center; }
 
 @media print {
-  header, #category-header, #config-warning, #partner-warning { display: none !important; }
+  header, footer, #category-header, #config-warning, #partner-warning { display: none !important; }
   #view-ledger-overview .account-tabs,
   #view-ledger-overview .month-row,
   #view-ledger-overview .submit-row,
