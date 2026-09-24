@@ -887,7 +887,8 @@ details.session-item-detail[open] > summary::before { content: "▾ "; }
 .rp-table tr.rp-total td { background: #181310; color: #fff; font-weight: 700; border-bottom: none; }
 .rp-chart-section { margin-top: 26px; }
 .rp-chart-wrap { display: flex; justify-content: center; }
-.rp-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 18px; margin-top: 6px; }
+.rp-legend { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 6px; }
+.rp-legend-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 18px; }
 .rp-legend .li { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .rp-legend .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; border: 1px solid #999; }
 .rp-note { font-size: 12px; color: #6b6259; margin-top: 6px; text-align: center; }
@@ -903,17 +904,11 @@ details.session-item-detail[open] > summary::before { content: "▾ "; }
   #view-shipment-report > .card:first-child { display: none !important; }
   #view-shipment-report .card:last-child { border: none; box-shadow: none; padding: 0; margin: 0; }
   .report-scroll { overflow: visible; padding: 0; }
-  /* 廠商彙總報表：盡量把整份報表塞在一頁裡，邊界、間距都比畫面上看到的再縮小一點 */
-  @page { size: A4; margin: 8mm; }
-  .report-page { border: none; margin: 0; width: auto; min-height: 0; padding: 0.4cm 0.9cm; page-break-inside: avoid; }
-  .rp-titlebar { margin: 10px 0 6px; padding: 6px 10px; }
-  .rp-month { margin: 0 0 6px; }
-  .rp-section-title { margin: 0 0 5px; }
-  .rp-table { margin-bottom: 3px; }
-  .rp-table td, .rp-table th { padding: 3.5px 8px; }
-  .rp-chart-section { margin-top: 8px; }
-  .rp-chart-wrap svg { max-width: 280px !important; }
-  .rp-legend { margin-top: 3px; gap: 6px 14px; }
+  /* 廠商彙總報表：維持畫面上原本的排版比例，只把頁面邊界、外框這些跟「印成一張紙」有關的部分調整，
+     不影響原本看習慣的間距；色塊圖例改成固定兩排（見 app.js），這樣廠商多的時候也不容易多跑出一整排、掉到第二頁 */
+  @page { size: A4; margin: 10mm; }
+  .report-page { border: none; margin: 0; width: auto; min-height: 0; padding: 1cm 1.5cm; page-break-inside: avoid; }
+  .rp-chart-wrap svg { max-width: 320px !important; }
   .print-only {
     display: block !important;
     font-size: 1.15rem;

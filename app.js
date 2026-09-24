@@ -5459,6 +5459,23 @@ function shipmentEstimateTextWidth(str) {
   return w;
 }
 
+// 報表最下面的圖例（色塊＋廠商名字）：廠商一多，如果讓瀏覽器自己換行，常常會換成 3～4 排，
+// 把報表撐到超過一張紙、多跑出第二頁。這裡改成固定分兩排：依每個項目「大概的寬度」（色塊＋文字＋間距）
+// 累加，儘量讓兩排的總寬度平均，這樣通常一排就能排成一行，不會又在排內部換行。
+function shipmentSplitLegendIntoTwoRows(items) {
+  if (items.length <= 1) return [items, []];
+  const widths = items.map(it => 10 + 6 + shipmentEstimateTextWidth(it.label) + 18);
+  const totalWidth = widths.reduce((a, b) => a + b, 0);
+  const half = totalWidth / 2;
+  let acc = 0, splitAt = items.length;
+  for (let i = 0; i < items.length; i++) {
+    acc += widths[i];
+    if (acc >= half) { splitAt = i + 1; break; }
+  }
+  splitAt = Math.max(1, Math.min(items.length - 1, splitAt));
+  return [items.slice(0, splitAt), items.slice(splitAt)];
+}
+
 // 廠商彙總報表不合併「其他」，廠商一多，標籤如果都貼著圓餅原本的角度擺，會擠在一起看不清楚（尤其好幾個小廠商
 // 角度很接近的時候）。這裡把標籤分成左右兩欄，同一欄裡由上到下排好、彼此至少留 rowH 的間距，擠在一起時才會
 // 自動往下（或往上）推開，跟切片之間仍然用一條折線牽著，不會認錯是哪個廠商；圖表寬度也會依最長的廠商名稱
@@ -5587,8 +5604,14 @@ function renderShipmentReport() {
   html += '<p class="rp-section-title">② 廠商佔比</p>';
   html += `<div class="rp-chart-wrap">${buildShipmentPieSvg(pieData)}</div>`;
   html += '<div class="rp-legend">';
-  pieData.items.forEach(it => {
-    html += `<span class="li"><span class="dot" style="background:${it.color};"></span>${escapeHtml(it.label)}</span>`;
+  const legendRows = shipmentSplitLegendIntoTwoRows(pieData.items);
+  legendRows.forEach(rowItems => {
+    if (!rowItems.length) return;
+    html += '<div class="rp-legend-row">';
+    rowItems.forEach(it => {
+      html += `<span class="li"><span class="dot" style="background:${it.color};"></span>${escapeHtml(it.label)}</span>`;
+    });
+    html += '</div>';
   });
   html += '</div>';
   html += '</div></div>';
