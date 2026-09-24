@@ -5449,35 +5449,98 @@ function buildShipmentPieData(rows) {
   items.forEach(r => { r.pct = total ? (r.amount / total * 100) : 0; });
   return { items, total };
 }
-function buildShipmentPieSvg(pieData) {
-  const cx = 150, cy = 130, r = 78, rLabel = r + 36;
-  const w = 320, h = 280;
-  if (pieData.total <= 0) {
-    return `<svg viewBox="0 0 ${w} 100" width="100%" style="max-width:380px;height:auto;"><text x="${w / 2}" y="50" text-anchor="middle" font-size="13" fill="#6b6259">尚無資料</text></svg>`;
+// 粗估一段文字用 10.5px 字級畫出來大概多寬（中文/全形字比較寬，英數字比較窄），沒辦法在畫 SVG 字串的當下
+// 量實際寬度，用估的抓一個夠用的欄寬，避免文字被裁到看不完整。
+function shipmentEstimateTextWidth(str) {
+  let w = 0;
+  for (const ch of String(str)) {
+    w += /[⺀-鿿豈-﫿＀-￯]/.test(ch) ? 11.5 : 6.3;
   }
+  return w;
+}
+
+// 廠商彙總報表不合併「其他」，廠商一多，標籤如果都貼著圓餅原本的角度擺，會擠在一起看不清楚（尤其好幾個小廠商
+// 角度很接近的時候）。這裡把標籤分成左右兩欄，同一欄裡由上到下排好、彼此至少留 rowH 的間距，擠在一起時才會
+// 自動往下（或往上）推開，跟切片之間仍然用一條折線牽著，不會認錯是哪個廠商；圖表寬度也會依最長的廠商名稱
+// 自動放大，文字才不會被裁到一半。
+function buildShipmentPieSvg(pieData) {
+  if (pieData.total <= 0) {
+    return `<svg viewBox="0 0 340 100" width="100%" style="max-width:440px;height:auto;"><text x="170" y="50" text-anchor="middle" font-size="13" fill="#6b6259">尚無資料</text></svg>`;
+  }
+
+  const r = 82;         // 圓餅半徑
+  const lineLen = r + 34; // 圓餅邊緣到標籤起點的牽線長度
+  const textGap = 6;     // 牽線終點到文字之間留的小空隙
+  const rowH = 28;       // 每個標籤（名稱＋百分比兩行）預留的垂直間距，避免重疊
+  const pad = 26;        // 圖表上下的留白
+  const sideMargin = 14; // 圖表左右最外側留白
+
   let angle = 0;
-  let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:380px;height:auto;">`;
-  pieData.items.forEach(it => {
+  const slices = pieData.items.map(it => {
     const span = it.pct / 100 * 360;
-    if (span <= 0) return;
-    const start = angle, end = angle + span;
-    svg += `<path d="${shipmentArcPath(cx, cy, r, start, end)}" fill="${it.color}" stroke="#ffffff" stroke-width="1.5"></path>`;
+    const start = angle, end = angle + span, mid = angle + span / 2;
     angle = end;
+    const dir = shipmentPt(0, 0, 1, mid); // 這個切片中點角度對應的方向（只取正負號跟比例，半徑固定為 1）
+    const textW = Math.max(shipmentEstimateTextWidth(it.label), shipmentEstimateTextWidth(it.pct.toFixed(1) + '%'));
+    return { ...it, start, end, mid, isRight: dir.x >= 0, dirY: dir.y, textW };
+  }).filter(s => s.end > s.start);
+
+  const rightItems = slices.filter(s => s.isRight);
+  const leftItems = slices.filter(s => !s.isRight);
+  const maxRows = Math.max(rightItems.length, leftItems.length, 1);
+  const halfH = Math.max(r + pad, (maxRows * rowH) / 2 + pad);
+  const cy = halfH;
+  const h = halfH * 2;
+
+  const rightMaxTextW = rightItems.length ? Math.max(...rightItems.map(s => s.textW)) : 0;
+  const leftMaxTextW = leftItems.length ? Math.max(...leftItems.map(s => s.textW)) : 0;
+  const cx = lineLen + textGap + leftMaxTextW + sideMargin;
+  const w = cx + lineLen + textGap + rightMaxTextW + sideMargin;
+
+  function layoutSide(items) {
+    if (items.length === 0) return;
+    items.sort((a, b) => a.dirY - b.dirY);
+    items.forEach(it => { it.labelY = cy + it.dirY * (r + 34); });
+    // 由上往下：跟前一個標籤太近就推開
+    for (let i = 1; i < items.length; i++) {
+      if (items[i].labelY - items[i - 1].labelY < rowH) items[i].labelY = items[i - 1].labelY + rowH;
+    }
+    // 如果整體超出下邊界，全部往上平移，彼此間距維持不變
+    const maxY = h - pad;
+    if (items[items.length - 1].labelY > maxY) {
+      const shift = items[items.length - 1].labelY - maxY;
+      items.forEach(it => { it.labelY -= shift; });
+    }
+    // 標籤真的很多、往上平移後又超出上邊界的話，保底再往下平移一次
+    const minY = pad;
+    if (items[0].labelY < minY) {
+      const shift = minY - items[0].labelY;
+      items.forEach(it => { it.labelY += shift; });
+    }
+  }
+  layoutSide(rightItems);
+  layoutSide(leftItems);
+
+  const maxWidthCss = Math.max(320, Math.min(560, Math.round(w)));
+  let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${maxWidthCss}px;height:auto;">`;
+  slices.forEach(it => {
+    // 只有一個廠商、佔比 100% 時，切片的起點跟終點角度算出來是同一個點，畫弧形會變成看不見，
+    // 這時候直接畫一個完整的圓就好
+    if (it.end - it.start >= 359.99) {
+      svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${it.color}" stroke="#ffffff" stroke-width="1.5"></circle>`;
+    } else {
+      svg += `<path d="${shipmentArcPath(cx, cy, r, it.start, it.end)}" fill="${it.color}" stroke="#ffffff" stroke-width="1.5"></path>`;
+    }
   });
-  angle = 0;
-  pieData.items.forEach(it => {
-    const span = it.pct / 100 * 360;
-    if (span <= 0) return;
-    const mid = angle + span / 2;
-    const edge = shipmentPt(cx, cy, r, mid);
-    const outer = shipmentPt(cx, cy, rLabel, mid);
-    const isRight = outer.x >= cx;
-    const anchor = isRight ? 'start' : 'end';
-    const tx = outer.x + (isRight ? 5 : -5);
-    svg += `<line x1="${edge.x.toFixed(2)}" y1="${edge.y.toFixed(2)}" x2="${outer.x.toFixed(2)}" y2="${outer.y.toFixed(2)}" stroke="#6b6259" stroke-width="1" stroke-dasharray="2,2"></line>`;
-    svg += `<text x="${tx.toFixed(2)}" y="${(outer.y - 3).toFixed(2)}" text-anchor="${anchor}" font-size="10.5" fill="#181310" font-weight="600">${escapeHtml(it.label)}</text>`;
-    svg += `<text x="${tx.toFixed(2)}" y="${(outer.y + 10).toFixed(2)}" text-anchor="${anchor}" font-size="10" fill="#3a322d">${it.pct.toFixed(1)}%</text>`;
-    angle += span;
+  slices.forEach(it => {
+    const edge = shipmentPt(cx, cy, r, it.mid);
+    const elbow = shipmentPt(cx, cy, r + 16, it.mid);
+    const labelX = cx + (it.isRight ? 1 : -1) * lineLen;
+    const anchor = it.isRight ? 'start' : 'end';
+    const tx = labelX + (it.isRight ? textGap : -textGap);
+    svg += `<polyline points="${edge.x.toFixed(2)},${edge.y.toFixed(2)} ${elbow.x.toFixed(2)},${elbow.y.toFixed(2)} ${labelX.toFixed(2)},${it.labelY.toFixed(2)}" fill="none" stroke="#6b6259" stroke-width="1" stroke-dasharray="2,2"></polyline>`;
+    svg += `<text x="${tx.toFixed(2)}" y="${(it.labelY - 3).toFixed(2)}" text-anchor="${anchor}" font-size="10.5" fill="#181310" font-weight="600">${escapeHtml(it.label)}</text>`;
+    svg += `<text x="${tx.toFixed(2)}" y="${(it.labelY + 10).toFixed(2)}" text-anchor="${anchor}" font-size="10" fill="#3a322d">${it.pct.toFixed(1)}%</text>`;
   });
   svg += '</svg>';
   return svg;
