@@ -16,7 +16,6 @@ const CATEGORIES = [
     key: 'project', title: '專案', desc: '建立事項、進度追蹤',
     subs: [
       { key: 'project-create', label: '專案建立' },
-      { key: 'project-track', label: '專案進度追蹤' },
       { key: 'project-settlement', label: '分潤結算' },
       { key: 'project-settlement-summary', label: '分潤總覽' }
     ]
@@ -654,7 +653,6 @@ function showView(viewKey) {
   if (viewKey === 'meeting-todo-list') loadMeetingTodoListData();
   if (viewKey === 'meeting-calendar') loadMeetingCalendar();
   if (viewKey === 'project-create') loadDocList('project');
-  if (viewKey === 'project-track') loadProjectTrackList();
   if (viewKey === 'project-settlement') { populateSettlementProjectSelect(); populateExpenseItemProjectSelect(); }
   if (viewKey === 'project-settlement-summary') loadSettlementSummaryData();
   if (viewKey === 'ledger-entry') loadLedgerView();
@@ -1534,23 +1532,6 @@ function collectTopicRows() {
     const title = row.querySelector('.topic-title').value.trim();
     const content = row.querySelector('.topic-content').value.trim();
     if (title) rows.push({ 議題標題: title, 議題內容: content });
-  });
-  return rows;
-}
-
-function addProjectItemRow() { addDynamicRow('project-item-row-template', 'project-item-rows'); }
-function resetProjectItemRows() {
-  document.getElementById('project-item-rows').innerHTML = '';
-  addProjectItemRow();
-}
-function collectProjectItemRows() {
-  const rows = [];
-  document.querySelectorAll('#project-item-rows .project-item-row').forEach(row => {
-    const content = row.querySelector('.item-content').value.trim();
-    const owner = row.querySelector('.item-owner').value;
-    const progress = row.querySelector('.item-progress').value;
-    const status = row.querySelector('.item-status').value;
-    if (content) rows.push({ 事項內容: content, 負責人: owner, '進度(%)': progress || 0, 狀態: status });
   });
   return rows;
 }
@@ -2478,77 +2459,6 @@ async function loadDocList(entity) {
   }
 }
 
-// ---------- 專案進度追蹤：每個專案一張簡易卡片（名稱、類型、負責人、工作事項進度摘要），點進去才有完整內容 ----------
-async function loadProjectTrackList() {
-  const container = document.querySelector('#view-project-track [data-doclist="project-track"]');
-  if (!container) return;
-  container.innerHTML = '<p class="hint">載入中…</p>';
-  try {
-    const [projectRes, itemRes] = await Promise.all([
-      apiGet({ action: 'list', type: 'project' }),
-      apiGet({ action: 'list', type: 'projectItem' })
-    ]);
-    if (!projectRes.ok) {
-      container.innerHTML = `<p class="hint">讀取失敗：${escapeHtml(projectRes.error || '')}</p>`;
-      return;
-    }
-    const projects = projectRes.data.slice().reverse().slice(0, 50);
-    const items = itemRes.ok ? itemRes.data : [];
-    if (projects.length === 0) {
-      container.innerHTML = '<p class="hint">目前還沒有專案</p>';
-      return;
-    }
-
-    function renderCard(p) {
-      const pid = p['編號'];
-      const pItems = items.filter(i => String(i['專案編號']) === String(pid));
-      const total = pItems.length;
-      const doneCount = pItems.filter(i => i['狀態'] === '已完成').length;
-      const avgProgress = total > 0
-        ? Math.round(pItems.reduce((sum, i) => sum + (Number(i['進度(%)']) || 0), 0) / total)
-        : 0;
-      const progressText = total === 0
-        ? '尚無工作事項'
-        : `工作事項 ${total} 筆・已完成 ${doneCount} 筆・平均進度 ${avgProgress}%`;
-
-      return `
-        <div class="doc-item" data-id="${escapeHtml(pid || '')}">
-          <div class="doc-main">
-            <div class="doc-title">${escapeHtml(p['專案名稱'] || '（未命名）')}${p['專案類型'] ? `<span class="tag">${escapeHtml(p['專案類型'])}</span>` : ''}</div>
-            <div class="doc-meta">主要負責人：${escapeHtml(p['主要負責人'] || '-')}　${progressText}</div>
-            ${total > 0 ? `<div class="progress-bar"><div class="progress-bar-fill" style="width:${avgProgress}%"></div></div>` : ''}
-          </div>
-          <div class="doc-arrow">›</div>
-        </div>
-      `;
-    }
-
-    // 依「專案類型」分類顯示，比較好找（沒有類型的舊資料歸在「未分類」）
-    const TYPE_ORDER = ['一次性專案', '長期性專案', '大型專案', '未分類'];
-    const groups = {};
-    projects.forEach(p => {
-      const t = p['專案類型'] && TYPE_ORDER.indexOf(p['專案類型']) !== -1 ? p['專案類型'] : '未分類';
-      (groups[t] = groups[t] || []).push(p);
-    });
-
-    container.innerHTML = TYPE_ORDER
-      .filter(t => groups[t] && groups[t].length > 0)
-      .map(t => `
-        <div class="subsection">
-          <h3>${escapeHtml(t)}（${groups[t].length}）</h3>
-          <div class="doc-list">${groups[t].map(renderCard).join('')}</div>
-        </div>
-      `).join('');
-
-    container.querySelectorAll('.doc-item').forEach(el => {
-      el.addEventListener('click', () => openDetail('project', el.dataset.id));
-    });
-  } catch (err) {
-    container.innerHTML = '<p class="hint">讀取失敗，請確認網路連線或設定是否正確。</p>';
-    console.error(err);
-  }
-}
-
 // ---------- 分潤總覽：每月需要分潤的專案，依「主要負責人」分類，可查詢過去月份 ----------
 const settlementSummaryCache = { projects: [], settlements: [] };
 
@@ -3231,30 +3141,14 @@ async function openProjectDetail(projectId) {
   document.getElementById('detail-overlay').classList.add('active');
 
   try {
-    const [projectRes, itemRes, settlementRes] = await Promise.all([
+    const [projectRes, settlementRes] = await Promise.all([
       apiGet({ action: 'list', type: 'project' }),
-      apiGet({ action: 'list', type: 'projectItem' }),
       apiGet({ action: 'list', type: 'projectSettlement' })
     ]);
     if (!projectRes.ok) { content.innerHTML = '讀取失敗：' + escapeHtml(projectRes.error || ''); return; }
     const project = projectRes.data.find(p => String(p['編號']) === String(projectId));
     if (!project) { content.innerHTML = '<p class="hint">找不到這個專案。</p>'; return; }
-    const items = (itemRes.ok ? itemRes.data : []).filter(i => String(i['專案編號']) === String(projectId));
     const settlements = (settlementRes.ok ? settlementRes.data : []).filter(r => String(r['專案編號']) === String(projectId));
-
-    let itemHtml;
-    if (items.length === 0) {
-      itemHtml = '<p class="hint">這個專案還沒有工作事項</p>';
-    } else {
-      itemHtml = '<table class="doc-todo-table"><thead><tr><th>事項內容</th><th>負責人</th><th>進度(%)</th><th>狀態</th><th></th></tr></thead><tbody>' +
-        items.map(i => `<tr>
-            <td>${escapeHtml(i['事項內容'] || '')}</td>
-            <td>${escapeHtml(i['負責人'] || '')}</td>
-            <td>${escapeHtml(i['進度(%)'] !== undefined ? i['進度(%)'] : '')}</td>
-            <td>${tagHtml(i['狀態'])}</td>
-            <td><button type="button" class="btn-edit" data-item-id="${escapeHtml(i['編號'])}">編輯</button></td>
-          </tr>`).join('') + '</tbody></table>';
-    }
 
     let settlementBlock = '';
     if (project['專案類型'] === '大型專案') {
@@ -3297,26 +3191,37 @@ async function openProjectDetail(projectId) {
             <span>預計完成：${escapeHtml(project['預計完成日'] || '-')}</span>
           </div>
         </div>
-        <button type="button" class="secondary" id="btn-edit-project">編輯專案</button>
+        <div class="row-actions">
+          <button type="button" class="secondary" id="btn-edit-project">編輯專案</button>
+          <button type="button" class="btn-delete-ledger" id="btn-delete-project">刪除專案</button>
+        </div>
       </div>
       ${docBlock('說明', project['說明'])}
-      <div class="doc-block">
-        <h4>工作事項（共 ${items.length} 筆）</h4>
-        ${itemHtml}
-      </div>
       ${settlementBlock}
       ${docBlock('備註', project['備註'])}
     `;
     enhanceScrollableTables(content);
 
     document.getElementById('btn-edit-project').addEventListener('click', () => {
-      openEditModal('project', project, () => { openProjectDetail(projectId); loadDocList('project'); loadProjectTrackList(); });
+      openEditModal('project', project, () => { openProjectDetail(projectId); loadDocList('project'); });
     });
-    content.querySelectorAll('[data-item-id]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const i = items.find(x => String(x['編號']) === btn.dataset.itemId);
-        if (i) openEditModal('projectItem', i, () => { openProjectDetail(projectId); loadProjectTrackList(); });
-      });
+    // 刪除專案：是真的從 Google Sheet 永久刪除，沒辦法復原，而且底下所有月份的分潤結算、支出明細都會
+    // 一併自動刪除，所以確認訊息要講清楚，避免手滑刪錯。
+    document.getElementById('btn-delete-project').addEventListener('click', async () => {
+      const label = project['專案名稱'] || '（未命名專案）';
+      if (!confirm(`確定要永久刪除這個專案嗎？\n${label}\n\n刪除後無法復原，底下所有月份的分潤結算與支出明細也會一併被刪除。`)) return;
+      try {
+        const res = await apiPostRaw({ action: 'delete', type: 'project', id: projectId });
+        if (res.ok) {
+          closeDetail();
+          loadDocList('project');
+        } else {
+          alert('刪除失敗：' + (res.error || ''));
+        }
+      } catch (err) {
+        alert('刪除失敗，請確認網路連線');
+        console.error(err);
+      }
     });
     content.querySelectorAll('[data-settlement-id]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3492,7 +3397,6 @@ function setupProjectForm() {
   const form = document.getElementById('project-form');
   if (!form) return;
 
-  document.getElementById('add-project-item-row').addEventListener('click', addProjectItemRow);
   document.getElementById('project-type-select').addEventListener('change', updateProjectIncomeFieldsVisibility);
   updateProjectIncomeFieldsVisibility();
 
@@ -3503,7 +3407,6 @@ function setupProjectForm() {
 
     const data = {};
     new FormData(form).forEach((value, key) => { data[key] = value; });
-    const itemRows = collectProjectItemRows();
 
     const incomeSection = document.getElementById('project-income-fields');
     const incomeVisible = incomeSection && incomeSection.style.display !== 'none';
@@ -3543,18 +3446,8 @@ function setupProjectForm() {
       }
       const projectId = projectRes.id;
 
-      // 工作事項（跟長期性專案的12個月分潤結算，如果有）一次打包送出（一次 Apps Script 呼叫），不用一筆一筆等
-      const batchItems = itemRows.map(item => ({
-        type: 'projectItem',
-        data: {
-          專案編號: projectId,
-          專案名稱: data['專案名稱'],
-          事項內容: item.事項內容,
-          負責人: item.負責人,
-          '進度(%)': item['進度(%)'],
-          狀態: item.狀態
-        }
-      }));
+      // 長期性專案自動建立12個月分潤結算（如果有填每月固定金額），一次打包送出（一次 Apps Script 呼叫），不用一筆一筆等
+      const batchItems = [];
 
       let incomeNote = '';
       if (incomeVisible && isLongTerm && fixedAmount && startMonth) {
@@ -3582,13 +3475,11 @@ function setupProjectForm() {
         incomeNote = '，已登記收入';
       }
 
-      msg.textContent = `✅ 已送出（專案編號：${projectId}，工作事項 ${itemRows.length} 筆${incomeNote}）`;
+      msg.textContent = `✅ 已送出（專案編號：${projectId}${incomeNote}）`;
       msg.className = 'status-msg ok';
       form.reset();
-      resetProjectItemRows();
       updateProjectIncomeFieldsVisibility();
       loadDocList('project');
-      loadProjectTrackList();
       populateSettlementProjectSelect();
       loadProjectNames();
     } catch (err) {
@@ -5726,7 +5617,6 @@ async function init() {
   syncProjectSelectName('expense-item-project-select', 'expense-item-project-name');
   resetTodoRows();
   resetTopicRows();
-  resetProjectItemRows();
 
   document.getElementById('detail-close').addEventListener('click', closeDetail);
   document.getElementById('detail-overlay').addEventListener('click', (e) => {
