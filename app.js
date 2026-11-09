@@ -1723,7 +1723,10 @@ async function renderCostItemsList(settlementId, projectName, month, onChange) {
           <td>${escapeHtml(i['項目說明'] || '')}</td>
           <td>${escapeHtml(i['金額'] !== undefined ? i['金額'] : '')}</td>
           <td>${escapeHtml(i['備註'] || '')}</td>
-          <td><button type="button" class="btn-edit" data-id="${escapeHtml(i['編號'])}">編輯</button></td>
+          <td>
+            <button type="button" class="btn-edit" data-id="${escapeHtml(i['編號'])}">編輯</button>
+            <button type="button" class="btn-delete-ledger" data-id="${escapeHtml(i['編號'])}">刪除</button>
+          </td>
         </tr>`).join('') +
       `</tbody></table><p class="hint">目前加總成本：${total}</p>`;
     enhanceScrollableTables(listEl);
@@ -1736,6 +1739,29 @@ async function renderCostItemsList(settlementId, projectName, month, onChange) {
             renderCostItemsList(settlementId, projectName, month, onChange);
             if (onChange) onChange();
           });
+        }
+      });
+    });
+
+    // 刪除支出項目：是真的從 Google Sheet 永久刪除，沒辦法復原，所以先跳出確認訊息，
+    // 刪除後「成本」會自動依剩下的支出項目重新加總（成本是公式，不用手動調整）。
+    listEl.querySelectorAll('.btn-delete-ledger').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const item = items.find(i => String(i['編號']) === btn.dataset.id);
+        if (!item) return;
+        const label = `${item['項目說明'] || ''}　$${item['金額'] !== undefined ? item['金額'] : ''}`;
+        if (!confirm(`確定要永久刪除這筆支出項目嗎？\n${label}\n\n刪除後無法復原，成本會自動重新計算。`)) return;
+        try {
+          const res = await apiPostRaw({ action: 'delete', type: 'projectExpenseItem', id: item['編號'] });
+          if (res.ok) {
+            await renderCostItemsList(settlementId, projectName, month, onChange);
+            if (onChange) onChange();
+          } else {
+            alert('刪除失敗：' + (res.error || ''));
+          }
+        } catch (err) {
+          alert('刪除失敗，請確認網路連線');
+          console.error(err);
         }
       });
     });
@@ -2304,6 +2330,7 @@ async function loadList(type, viewKey) {
         if (isSettlement) {
           const label = escapeHtml((r['專案名稱'] || '') + '　' + (r['月份'] || ''));
           actionHtml += ` <button type="button" class="btn-costitems" data-settlement-id="${escapeHtml(r['編號'])}" data-settlement-label="${label}" data-project-name="${escapeHtml(r['專案名稱'] || '')}" data-month="${escapeHtml(r['月份'] || '')}">支出明細</button>`;
+          actionHtml += ` <button type="button" class="btn-delete-ledger" data-id="${escapeHtml(r['編號'])}" data-label="${label}">刪除</button>`;
         }
         if (isClassSession) {
           actionHtml += ` <button type="button" class="btn-attendance" data-session-id="${escapeHtml(r['編號'])}">出席名單</button>`;
@@ -2344,6 +2371,26 @@ async function loadList(type, viewKey) {
             btn.dataset.projectName, btn.dataset.month,
             () => loadList(type, viewKey)
           );
+        });
+      });
+
+      // 刪除分潤結算：是真的從 Google Sheet 永久刪除，沒辦法復原，所以先跳出確認訊息，
+      // 並提醒底下的支出明細會一併被刪除（後端 deleteRow 會自動連動刪除對應的「專案支出明細」）。
+      container.querySelectorAll('.btn-delete-ledger').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm(`確定要永久刪除這筆分潤結算嗎？\n${btn.dataset.label}\n\n刪除後無法復原，底下的支出明細也會一併被刪除。`)) return;
+          try {
+            const res = await apiPostRaw({ action: 'delete', type: 'projectSettlement', id: btn.dataset.id });
+            if (res.ok) {
+              loadList(type, viewKey);
+            } else {
+              alert('刪除失敗：' + (res.error || ''));
+            }
+          } catch (err) {
+            alert('刪除失敗，請確認網路連線');
+            console.error(err);
+          }
         });
       });
     }
@@ -3228,6 +3275,7 @@ async function openProjectDetail(projectId) {
             <td class="row-actions">
               <button type="button" class="btn-edit" data-settlement-id="${escapeHtml(s['編號'])}">編輯</button>
               <button type="button" class="btn-costitems" data-costitems-id="${escapeHtml(s['編號'])}">支出明細</button>
+              <button type="button" class="btn-delete-ledger" data-delete-settlement-id="${escapeHtml(s['編號'])}" data-label="${escapeHtml((s['專案名稱'] || '') + '　' + (s['月份'] || ''))}">刪除</button>
             </td>
           </tr>`).join('') + '</tbody></table>';
       settlementBlock = `
@@ -3285,6 +3333,23 @@ async function openProjectDetail(projectId) {
             s['專案名稱'], s['月份'],
             () => openProjectDetail(projectId)
           );
+        }
+      });
+    });
+    // 刪除分潤結算：永久刪除，無法復原，底下的支出明細會一併被刪除（後端自動連動），所以先跳出確認訊息。
+    content.querySelectorAll('[data-delete-settlement-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(`確定要永久刪除這筆分潤結算嗎？\n${btn.dataset.label}\n\n刪除後無法復原，底下的支出明細也會一併被刪除。`)) return;
+        try {
+          const res = await apiPostRaw({ action: 'delete', type: 'projectSettlement', id: btn.dataset.deleteSettlementId });
+          if (res.ok) {
+            openProjectDetail(projectId);
+          } else {
+            alert('刪除失敗：' + (res.error || ''));
+          }
+        } catch (err) {
+          alert('刪除失敗，請確認網路連線');
+          console.error(err);
         }
       });
     });
