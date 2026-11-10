@@ -3022,6 +3022,34 @@ async function openDetail(entity, id) {
   if (entity === 'project') return openProjectDetail(id);
 }
 
+// 把詳情頁目前顯示的內容（#detail-content）轉存成一張 PNG 圖片，觸發瀏覽器下載。
+// 下載前會先暫時隱藏所有按鈕（編輯、下載本身等），讓存出來的圖片乾淨、沒有操作用的按鈕，下載完再恢復顯示。
+async function downloadDetailAsImage(filename) {
+  const el = document.getElementById('detail-content');
+  if (!el) return;
+  if (typeof html2canvas === 'undefined') {
+    alert('圖片下載功能還在載入中，請稍等幾秒再試一次（需要網路連線）');
+    return;
+  }
+  const buttons = el.querySelectorAll('button');
+  const prevDisplay = [];
+  buttons.forEach(b => { prevDisplay.push(b.style.display); b.style.display = 'none'; });
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+    const link = document.createElement('a');
+    link.download = (filename || '會議記錄') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (err) {
+    alert('下載失敗，請確認網路連線後再試一次');
+    console.error(err);
+  } finally {
+    buttons.forEach((b, i) => { b.style.display = prevDisplay[i]; });
+  }
+}
+
 async function openMeetingDetail(meetingId) {
   const content = document.getElementById('detail-content');
   content.innerHTML = '<p class="hint">載入中…</p>';
@@ -3080,7 +3108,10 @@ async function openMeetingDetail(meetingId) {
             <span>缺席：${escapeHtml(meeting['缺席人員'] || '無')}</span>
           </div>
         </div>
-        <button type="button" class="secondary" id="btn-edit-meeting">編輯會議記錄</button>
+        <div class="row-actions">
+          <button type="button" class="secondary" id="btn-edit-meeting">編輯會議記錄</button>
+          <button type="button" class="secondary" id="btn-download-meeting">下載圖片</button>
+        </div>
       </div>
       <div class="doc-block">
         <h4>本次會議議題（共 ${topics.length} 筆）</h4>
@@ -3104,6 +3135,10 @@ async function openMeetingDetail(meetingId) {
         loadLastMeetingReference();
         loadMeetingTodoListData();
       });
+    });
+    document.getElementById('btn-download-meeting').addEventListener('click', () => {
+      const safeName = `會議記錄_${meeting['會議日期'] || ''}_${meeting['會議主題'] || ''}`.replace(/[\\/:*?"<>|]/g, '_');
+      downloadDetailAsImage(safeName);
     });
     content.querySelectorAll('.btn-edit[data-todo-id]').forEach(btn => {
       btn.addEventListener('click', () => {

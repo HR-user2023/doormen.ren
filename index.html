@@ -239,14 +239,6 @@
           <div class="hint" id="project-income-hint"></div>
         </div>
 
-        <div class="full todo-section">
-          <div class="todo-section-head">
-            <span>工作事項（可新增多筆，每筆可以指定不同負責人與進度）</span>
-            <button type="button" id="add-project-item-row" class="secondary">＋ 新增工作事項</button>
-          </div>
-          <div id="project-item-rows"></div>
-        </div>
-
         <div class="submit-row">
           <button type="submit" class="primary">送出專案</button>
           <span class="status-msg"></span>
@@ -259,33 +251,8 @@
     </div>
     <div class="card">
       <h2>歷史專案</h2>
-      <p class="hint">點一筆可查看並編輯工作事項、進度與分潤結算。</p>
+      <p class="hint">點一筆可查看並編輯分潤結算。</p>
       <div class="doc-list" data-doclist="project"></div>
-    </div>
-  </section>
-
-  <!-- 專案工作事項列樣板（JS 會 clone 這個） -->
-  <template id="project-item-row-template">
-    <div class="todo-row project-item-row">
-      <input type="text" class="item-content" placeholder="事項內容" />
-      <select class="item-owner partner-select"></select>
-      <input type="number" class="item-progress" min="0" max="100" placeholder="進度%" />
-      <select class="item-status">
-        <option>未開始</option>
-        <option>進行中</option>
-        <option>已完成</option>
-        <option>延遲</option>
-      </select>
-      <button type="button" class="todo-remove" title="刪除這筆">×</button>
-    </div>
-  </template>
-
-  <!-- ============ 專案進度追蹤（每個專案一張簡易卡片，點進去才有完整工作事項與分潤結算） ============ -->
-  <section id="view-project-track" class="view content-view">
-    <div class="card">
-      <h2>專案進度追蹤</h2>
-      <p class="hint">先顯示簡易進度，點一筆看完整清單。</p>
-      <div class="doc-list" data-doclist="project-track"></div>
     </div>
   </section>
 
@@ -1350,6 +1317,8 @@
   </div>
 </div>
 
+<!-- html2canvas：用來把「會議記錄」詳情頁轉存成圖片，給「下載圖片」按鈕使用 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
